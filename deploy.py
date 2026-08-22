@@ -1,15 +1,23 @@
 import os
 import sys
+import getpass
 import paramiko
 
 # Ensure UTF-8 stdout encoding on Windows
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Target Raspberry Pi settings
-hostname = sys.argv[1] if len(sys.argv) > 1 else '192.168.4.50'
+# Target Raspberry Pi settings (can be provided via environment variables or CLI arguments)
+hostname = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('PI_HOST', 'raspberrypi.local')
 username = 'pi'
-password = sys.argv[2] if len(sys.argv) > 2 else '7149'
+password = sys.argv[2] if len(sys.argv) > 2 else os.environ.get('PI_PASSWORD')
+
+if not password:
+    try:
+        password = getpass.getpass(prompt=f"Enter SSH password for {username}@{hostname}: ")
+    except Exception:
+        print(f"Error: SSH password required. Pass as 2nd argument or set PI_PASSWORD environment variable.")
+        sys.exit(1)
 
 print(f"==========================================")
 print(f" Deploying Adam Apartment Hub to {username}@{hostname}")
@@ -43,13 +51,12 @@ ensure_remote_dir(f"{remote_dir}/lights/listener")
 files_to_upload = [
     ("server.js", f"{remote_dir}/server.js"),
     ("package.json", f"{remote_dir}/package.json"),
-    ("firebase-config.json", f"{remote_dir}/firebase-config.json"),
     ("index.html", f"{remote_dir}/index.html"),
     ("CNAME", f"{remote_dir}/CNAME"),
     (os.path.join("printer", "index.html"), f"{remote_dir}/printer/index.html"),
     (os.path.join("printer", "script.js"), f"{remote_dir}/printer/script.js"),
     (os.path.join("printer", "style.css"), f"{remote_dir}/printer/style.css"),
-    (os.path.join("printer", "firebase-config.js"), f"{remote_dir}/printer/firebase-config.js"),
+    (os.path.join("printer", "firebase-config.example.js"), f"{remote_dir}/printer/firebase-config.example.js"),
     (os.path.join("lights", "index.html"), f"{remote_dir}/lights/index.html"),
     (os.path.join("lights", "start_listener.sh"), f"{remote_dir}/lights/start_listener.sh"),
     (os.path.join("lights", "listener", "listener.py"), f"{remote_dir}/lights/listener/listener.py"),
