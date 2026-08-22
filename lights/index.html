@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Light Controller</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22 shape-rendering=%22crispEdges%22><path fill=%22%23FDE047%22 d=%22M6 1h4v1H6zM5 2h6v1H5zM4 3h8v5h-1v1h-1v1H6V9H5V8H4z%22/><path fill=%22%2394A3B8%22 d=%22M6 11h4v1H6zM6 13h4v1H6z%22/><path fill=%22%2364748B%22 d=%22M6 12h4v1H6zM7 14h2v1H7z%22/></svg>">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: rgba(30, 41, 59, 0.7);
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --on: #4ade80;
+            --off: #f87171;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: 6px;
+            margin-bottom: 20px;
+            color: #94a3b8;
+        }
+
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 32px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            text-align: center;
+            position: relative;
+        }
+
+        .hub-link {
+            position: absolute;
+            top: 20px;
+            left: 24px;
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-ring {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 10px auto 25px;
+            border: 4px solid #1e293b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .status-ring.on {
+            border-color: var(--on);
+            box-shadow: 0 0 30px rgba(74, 222, 128, 0.3);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            padding: 16px;
+            border: none;
+            border-radius: 16px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary { background: #0ea5e9; color: white; }
+        .btn-secondary { background: #334155; color: #cbd5e1; }
+        .btn-apply { 
+            grid-column: span 2; 
+            background: var(--on); 
+            color: #064e3b;
+            margin-top: 10px;
+        }
+
+        .btn:active { transform: scale(0.95); }
+
+        .slider-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .swatch {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: none;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: box-shadow 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .swatch.selected { 
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 0 0 2px var(--bg), 0 0 0 4px white;
+        }
+
+        .swatch-custom {
+            background: conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red);
+        }
+
+        .broker-status {
+            font-size: 0.6rem;
+            color: #475569;
+            margin-top: 20px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <a href="../" class="hub-link">&larr; Hub</a>
+        <div id="status-ring" class="status-ring">
+            <div id="status-text" style="font-size: 0.7rem; font-weight: bold; color: #475569;">OFF</div>
+        </div>
+
+        <div class="controls-grid">
+            <button class="btn btn-primary" onclick="sendCommand('on')">ON</button>
+            <button class="btn btn-secondary" onclick="sendCommand('off')">OFF</button>
+            <button class="btn btn-secondary" style="grid-column: span 2;" onclick="sendCommand('reset')">RESET TO DAYLIGHT</button>
+        </div>
+
+        <div class="slider-group">
+            <label>Brightness</label>
+            <input type="range" id="brightness" min="1" max="100" value="100">
+        </div>
+
+        <div class="slider-group">
+            <label>Mood Color</label>
+            <div class="color-presets">
+                <div class="swatch" style="background: #ff0000" onclick="setSwatch('#ff0000', this)"></div>
+                <div class="swatch" style="background: #ffa500" onclick="setSwatch('#ffa500', this)"></div>
+                <div class="swatch" style="background: #ffff00" onclick="setSwatch('#ffff00', this)"></div>
+                <div class="swatch" style="background: #00ff00" onclick="setSwatch('#00ff00', this)"></div>
+                <div class="swatch" style="background: #00ffff" onclick="setSwatch('#00ffff', this)"></div>
+                <div class="swatch" style="background: #0000ff" onclick="setSwatch('#0000ff', this)"></div>
+                <div class="swatch" style="background: #ff00ff" onclick="setSwatch('#ff00ff', this)"></div>
+                <div class="swatch swatch-custom" onclick="openPicker(event)">
+                    <input type="color" id="custom-color" style="position: fixed; visibility: hidden; opacity: 0; pointer-events: none;" onchange="setSwatch(this.value, this.parentElement)">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-apply" onclick="applySettings()">APPLY SETTINGS</button>
+
+        <div id="broker-status" class="broker-status">CONNECTING...</div>
+    </div>
+</div>
+
+<script>
+    const TOPIC_CMD = "adam/lights/candle_controller/cmd";
+    const TOPIC_STATUS = "adam/lights/candle_controller/status";
+    const BROKER = "wss://broker.hivemq.com:8884/mqtt"; 
+
+    let selectedColor = "#ffffff";
+    const client = mqtt.connect(BROKER);
+    
+    const ring = document.getElementById('status-ring');
+    const statusText = document.getElementById('status-text');
+    const brokerStatus = document.getElementById('broker-status');
+
+    function openPicker(e) {
+        const picker = document.getElementById('custom-color');
+        picker.style.top = e.clientY + 'px';
+        picker.style.left = e.clientX + 'px';
+        
+        if (picker.showPicker) {
+            picker.showPicker();
+        } else {
+            picker.click();
+        }
+    }
+
+    client.on('connect', () => {
+        brokerStatus.innerText = "CONNECTED";
+        brokerStatus.style.color = "#4ade80";
+        client.subscribe(TOPIC_STATUS);
+        client.publish(TOPIC_CMD, JSON.stringify({ action: "status" }));
+    });
+
+    client.on('message', (topic, message) => {
+        if (topic === TOPIC_STATUS) {
+            const data = JSON.parse(message.toString());
+            if (data.room_state === 'on') {
+                ring.classList.add('on');
+                statusText.innerText = "ON";
+                statusText.style.color = "#4ade80";
+            } else {
+                ring.classList.remove('on');
+                statusText.innerText = "OFF";
+                statusText.style.color = "#475569";
+            }
+        }
+    });
+
+    function setSwatch(hex, element) {
+        selectedColor = hex;
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+        element.classList.add('selected');
+    }
+
+    function sendCommand(action) {
+        client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: action }));
+    }
+
+    function applySettings() {
+        const brightness = document.getElementById('brightness').value;
+        
+        client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: "brightness", value: brightness }));
+        setTimeout(() => {
+            client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: "color", value: selectedColor }));
+        }, 200);
+    }
+</script>
+
+</body>
+</html>

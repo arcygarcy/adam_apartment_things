@@ -1,0 +1,3 @@
+tinytuya
+paho-mqtt
+requests

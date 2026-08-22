@@ -1,0 +1,15 @@
+{
+  "name": "adam_apartment_things",
+  "version": "1.0.0",
+  "description": "Adam's Apartment Smart Home Hub & Thermal Guestbook Printer Monorepo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "deploy": "python deploy.py"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "firebase": "^10.8.0",
+    "usb": "^3.0.1"
+  }
+}

@@ -1,0 +1,15 @@
+{
+    "MQTT_TOPIC": "adam/lights/candle_controller/cmd",
+    "STATUS_TOPIC": "adam/lights/candle_controller/status",
+    "LATITUDE": 37.7749,
+    "LONGITUDE": -122.4194,
+    "TIMEZONE": "America/Los_Angeles",
+    "LIGHTS": {
+        "candle_1": {
+            "id": "DEVICE_ID_HERE", 
+            "key": "LOCAL_KEY_HERE",
+            "ip": "192.168.x.x",
+            "version": 3.5
+        }
+    }
+}

@@ -1,0 +1,326 @@
+:root {
+    --bg-color: #1a080c;
+    --card-bg: #2b1017;
+    --text-main: #fff1f3;
+    --text-muted: #fda4af;
+    --primary: #9f1239;
+    --primary-hover: #be123c;
+    --success: #e11d48;
+    --danger: #f43f5e;
+    --border: #4c1d24;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+header h1 {
+    font-weight: 800;
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #fecdd3, #fb7185, #e11d48);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    color: var(--text-muted);
+}
+
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, opacity 0.3s ease;
+}
+
+.card.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.card p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.primary-btn {
+    background-color: var(--primary);
+    color: white;
+}
+
+.primary-btn:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.print-btn {
+    background-color: var(--primary);
+    color: white;
+    width: 100%;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 12px rgba(159, 18, 57, 0.3);
+}
+
+.print-btn:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(190, 18, 60, 0.4);
+}
+
+.status-badge {
+    display: inline-block;
+    margin-left: 1rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-badge.disconnected {
+    background-color: rgba(244, 63, 94, 0.15);
+    color: var(--danger);
+}
+
+.status-badge.connected {
+    background-color: rgba(225, 29, 72, 0.15);
+    color: var(--success);
+}
+
+.drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: rgba(26, 8, 12, 0.6);
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: #e11d48;
+    background-color: rgba(225, 29, 72, 0.08);
+}
+
+.drop-text {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.preview-container {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border);
+    padding-top: 2rem;
+}
+
+.canvas-wrapper {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#previewCanvas {
+    max-width: 100%;
+    height: auto;
+    filter: contrast(1.2);
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.control-group label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.styled-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background-color: #1a080c;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.styled-select:focus {
+    border-color: #e11d48;
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.25);
+}
+
+.presets-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.preset-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.preset-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.preset-pill {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preset-pill:hover {
+    background-color: rgba(225, 29, 72, 0.15);
+    color: var(--text-main);
+    border-color: #e11d48;
+}
+
+.preset-pill.active {
+    background-color: var(--primary);
+    color: white;
+    border-color: #fb7185;
+    box-shadow: 0 2px 8px rgba(225, 29, 72, 0.4);
+}
+
+.sliders-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 600px) {
+    .sliders-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.slider-value {
+    font-size: 0.85rem;
+    color: #fb7185;
+    font-weight: 600;
+}
+
+input[type=range] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    accent-color: var(--primary);
+}
+
+.styled-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #1a080c;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.styled-textarea:focus {
+    border-color: #e11d48;
+}
+
+.help-card {
+    background-color: rgba(225, 29, 72, 0.12);
+    border-color: rgba(225, 29, 72, 0.3);
+}
+
+.help-card h3 {
+    color: #fb7185;
+    margin-bottom: 0.5rem;
+}
+
+.help-card p {
+    margin-bottom: 0;
+}
+
+.help-card a {
+    color: #fb7185;
+    text-decoration: underline;
+}

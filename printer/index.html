@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Guestbook Thermal Printer</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header style="position: relative;">
+            <a href="../" style="position: absolute; left: 0; top: 0; color: #94a3b8; text-decoration: none; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 4px;">&larr; Hub</a>
+            <h1>House Guestbook</h1>
+            <p>Snap a photo and print it instantly!</p>
+        </header>
+
+        <main>
+            <div class="card upload-card" id="uploadSection">
+                <div class="drop-zone" id="dropZone">
+                    <span class="drop-text">Tap here to Take a Photo!</span>
+                    <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;">
+                </div>
+                
+                <div class="preview-container" style="display: none;">
+                    <h3>Print Preview</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="previewCanvas"></canvas>
+                    </div>
+                    
+                    <div class="actions">
+                        <div class="control-group">
+                            <label for="styleSelect">Rendering & Greyscale Mode:</label>
+                            <select id="styleSelect" class="styled-select">
+                                <option value="floyd" selected>Floyd-Steinberg Dither (Smooth Photo)</option>
+                                <option value="atkinson">Atkinson Dither (Retro Macintosh 1-Bit)</option>
+                                <option value="bayer">Ordered Bayer Matrix (8-Bit Pixel Grid)</option>
+                                <option value="halftone">Halftone Dots (Vintage Newspaper Screen)</option>
+                                <option value="stucki">Stucki Dither (Sharp Detail)</option>
+                                <option value="threshold">Binary High Contrast (Logos & Line Art)</option>
+                                <option value="sobel">Line Art Sketch (Edge Outlines)</option>
+                                <option value="ascii">ASCII Art (Text Characters)</option>
+                            </select>
+                        </div>
+
+                        <div class="presets-container">
+                            <span class="preset-label">Quick Presets:</span>
+                            <div class="preset-pills">
+                                <button type="button" class="preset-pill active" data-preset="photo">Smooth Photo</button>
+                                <button type="button" class="preset-pill" data-preset="sketch">Line Art</button>
+                                <button type="button" class="preset-pill" data-preset="retro">Retro Mac</button>
+                                <button type="button" class="preset-pill" data-preset="newspaper">Newspaper</button>
+                                <button type="button" class="preset-pill" data-preset="pixel">Pixel Art</button>
+                                <button type="button" class="preset-pill" data-preset="ascii">ASCII Art</button>
+                                <button type="button" class="preset-pill" data-preset="poster">High Contrast</button>
+                            </div>
+                        </div>
+
+                        <div id="asciiControls" class="sliders-grid" style="display: none; background: rgba(225, 29, 72, 0.08); padding: 1rem; border-radius: 8px; border: 1px solid rgba(225, 29, 72, 0.25);">
+                            <div class="control-group">
+                                <label for="asciiRamp">ASCII Character Set:</label>
+                                <select id="asciiRamp" class="styled-select">
+                                    <option value="standard">Standard (@%#*+=-:. )</option>
+                                    <option value="blocks">Solid Blocks (█▓▒░ )</option>
+                                    <option value="matrix">Matrix Binary (10 )</option>
+                                    <option value="detailed">Ultra Detailed (64 Chars)</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <div class="slider-header">
+                                    <label for="asciiColsSlider">ASCII Detail & Micro-Font Width:</label>
+                                    <span id="asciiColsVal" class="slider-value">96 Columns (HD)</span>
+                                </div>
+                                <input type="range" id="asciiColsSlider" min="32" max="144" step="8" value="96">
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="frameSelect">Photo Frame & Border Overlay:</label>
+                            <select id="frameSelect" class="styled-select">
+                                <option value="none" selected>None (Plain Edge)</option>
+                                <option value="polaroid">Polaroid Guestbook Frame (With Date)</option>
+                                <option value="stamp">Postage Stamp Perforated Border</option>
+                                <option value="vintage">Vintage Corner Stars Border</option>
+                            </select>
+                        </div>
+
+                        <div class="sliders-grid">
+                            <div class="control-group">
+                                <div class="slider-header">
+                                    <label for="thresholdSlider">Brightness (Lighting):</label>
+                                    <span id="brightnessVal" class="slider-value">128</span>
+                                </div>
+                                <input type="range" id="thresholdSlider" min="0" max="255" value="128">
+                            </div>
+
+                            <div class="control-group">
+                                <div class="slider-header">
+                                    <label for="contrastSlider">Contrast:</label>
+                                    <span id="contrastVal" class="slider-value">100%</span>
+                                </div>
+                                <input type="range" id="contrastSlider" min="50" max="200" value="100">
+                            </div>
+                        </div>
+
+                        <div class="control-group" style="margin-top: 0.5rem;">
+                            <label for="noteInput">Add a Note (optional):</label>
+                            <textarea id="noteInput" placeholder="Write a message to print..." rows="2" class="styled-textarea"></textarea>
+                        </div>
+                        
+                        <button id="printBtn" class="btn print-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                            Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="statusAlert" class="card help-card" style="display: none; text-align: center;">
+                <h3 id="statusTitle">Printing...</h3>
+                <p id="statusMsg">Please wait</p>
+            </div>
+        </main>
+    </div>
+    <!-- Firebase Compatibility SDKs for Cloud Queue Printing -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

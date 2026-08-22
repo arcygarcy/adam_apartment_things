@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+venv/
+lights/listener/venv/
+
+# Environment & Credentials
+firebase-config.json
+firebase-service-account.json
+lights/listener/config.json
+printer/firebase-config.js
+order_counter.json
+
+# System & Logs
+*.log
+.DS_Store
+Thumbs.db
