@@ -754,36 +754,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const response = await fetch('/print', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/octet-stream',
-                    'X-Print-Note': encodeURIComponent(noteText)
-                },
-                body: printData
-            });
+            const isLocalServer = (
+                window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1' ||
+                window.location.hostname.startsWith('192.168.') ||
+                window.location.hostname.startsWith('10.')
+            );
 
-            if (!response.ok) {
-                throw new Error(`Server returned status ${response.status}`);
-            }
+            if (isLocalServer) {
+                const response = await fetch('/print', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'X-Print-Note': encodeURIComponent(noteText)
+                    },
+                    body: printData
+                });
 
-            const result = await response.json();
-            
-            statusTitle.textContent = "Printed Successfully!";
-            statusMsg.textContent = result.message || "Your photo has been sent to the printer!";
-            statusAlert.style.borderColor = "var(--success)";
-            
-            if (result.nextOrder) {
-                currentOrderNumber = result.nextOrder;
-                if (noteInput) noteInput.value = '';
-                scheduleProcessImage();
+                if (!response.ok) {
+                    throw new Error(`Server returned status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                statusTitle.textContent = "Printed Successfully!";
+                statusMsg.textContent = result.message || "Your photo has been sent to the printer!";
+                statusAlert.style.borderColor = "var(--success)";
+                
+                if (result.nextOrder) {
+                    currentOrderNumber = result.nextOrder;
+                    if (noteInput) noteInput.value = '';
+                    scheduleProcessImage();
+                } else {
+                    await fetchOrderInfo();
+                }
+
+                setTimeout(() => {
+                    statusAlert.style.display = 'none';
+                }, 3000);
             } else {
-                await fetchOrderInfo();
+                // If on public Cloud domain (g-arcy.com) but window.db is not yet ready, attempt initialization
+                if (typeof firebase !== 'undefined' && firebaseConfig && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                    try {
+                        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                        window.db = firebase.firestore();
+                        throw new Error("Cloud Queue re-connected! Please click Print again.");
+                    } catch (fbErr) {
+                        throw new Error("Cloud Queue connection failed: " + fbErr.message);
+                    }
+                } else {
+                    throw new Error("Cloud Printing Queue is connecting. Please refresh the page and try again.");
+                }
             }
-
-            setTimeout(() => {
-                statusAlert.style.display = 'none';
-            }, 3000);
             
         } catch (error) {
             console.error(error);
