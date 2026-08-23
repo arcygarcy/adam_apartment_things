@@ -61,31 +61,30 @@ async function executePrintJob(rawImageData) {
     orderCounter++;
     saveOrderCounter(orderCounter);
     
+    const linuxPrinterPath = '/dev/usb/lp0';
+    if (fs.existsSync(linuxPrinterPath)) {
+        try {
+            const fd = fs.openSync(linuxPrinterPath, 'w');
+            const CHUNK_SIZE = 2048;
+            for (let offset = 0; offset < finalPrintData.length; offset += CHUNK_SIZE) {
+                const chunk = finalPrintData.slice(offset, offset + CHUNK_SIZE);
+                fs.writeSync(fd, chunk);
+                const stop = Date.now() + 15;
+                while (Date.now() < stop) {}
+            }
+            fs.closeSync(fd);
+            console.log(`✓ [Printer] Order #${printedOrder} printed successfully via /dev/usb/lp0!`);
+            return { success: true, message: `Order #${printedOrder} Printed!`, nextOrder: orderCounter };
+        } catch (linuxError) {
+            console.error('Linux lp0 write error:', linuxError);
+        }
+    }
+
     try {
         await printViaUsb(finalPrintData);
         return { success: true, message: `Order #${printedOrder} Printed!`, nextOrder: orderCounter };
     } catch (error) {
-        console.error('Print failed:', error);
-        
-        // Fallback for Raspberry Pi if direct USB library fails (uses system device file)
-        const linuxPrinterPath = '/dev/usb/lp0';
-        if (fs.existsSync(linuxPrinterPath)) {
-            try {
-                const fd = fs.openSync(linuxPrinterPath, 'w');
-                const CHUNK_SIZE = 2048;
-                for (let offset = 0; offset < finalPrintData.length; offset += CHUNK_SIZE) {
-                    const chunk = finalPrintData.slice(offset, offset + CHUNK_SIZE);
-                    fs.writeSync(fd, chunk);
-                    const stop = Date.now() + 15;
-                    while (Date.now() < stop) {}
-                }
-                fs.closeSync(fd);
-                console.log('Successfully sent to printer via fallback /dev/usb/lp0');
-                return { success: true, message: `Order #${printedOrder} Printed via fallback!`, nextOrder: orderCounter };
-            } catch (fallbackError) {
-                console.error('Fallback failed:', fallbackError);
-            }
-        }
+        console.error('WebUSB print failed:', error);
         throw error;
     }
 }
