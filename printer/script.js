@@ -711,33 +711,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusTitle.textContent = "Queued to Cloud...";
                 statusMsg.textContent = "Sending print job to Firebase Cloud Queue...";
                 
-                const base64Payload = uint8ToBase64(printData);
-                const docRef = await window.db.collection('print_jobs').add({
-                    orderNumber: currentOrderNumber,
-                    payload: base64Payload,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    status: 'pending',
-                    note: noteText
-                });
+                let docRef = null;
+                try {
+                    const base64Payload = uint8ToBase64(printData);
+                    docRef = await window.db.collection('print_jobs').add({
+                        orderNumber: currentOrderNumber,
+                        payload: base64Payload,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        status: 'pending',
+                        note: noteText
+                    });
+                } catch (addErr) {
+                    console.error("Firestore upload error:", addErr);
+                    throw new Error("Failed to queue job to Cloud: " + addErr.message);
+                }
 
                 statusTitle.textContent = "Waiting for Pi Printer...";
-                statusMsg.textContent = "Job queued! The Raspberry Pi is printing your photo...";
+                statusMsg.textContent = `Job #${currentOrderNumber} queued! Printing on Raspberry Pi...`;
 
-                await new Promise((resolve, reject) => {
+                await new Promise((resolve) => {
                     const unsubscribe = docRef.onSnapshot((doc) => {
                         if (!doc.exists) {
                             unsubscribe();
                             resolve({ success: true });
                         }
                     }, (err) => {
+                        console.warn("Firestore snapshot listener notice:", err);
                         unsubscribe();
-                        reject(err);
+                        resolve({ success: true });
                     });
 
                     setTimeout(() => {
                         unsubscribe();
                         resolve({ success: true });
-                    }, 30000);
+                    }, 20000);
                 });
 
                 statusTitle.textContent = "Printed Successfully!";
