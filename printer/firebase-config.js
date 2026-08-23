@@ -1,17 +1,14 @@
 // ============================================================================
-// Firebase Configuration for GitHub Pages & Cloud Pub/Sub Printing
-// ============================================================================
-// Paste your Firebase Web App configuration below.
-// This file is ignored by Git to keep your API keys private.
+// Firebase Configuration for Guestbook Thermal Cloud Printing
 // ============================================================================
 
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
+    apiKey: "AIzaSyCpfXckgoiOA0CHZrWGAwZjTMcWMtVOIyo",
     authDomain: "printer-thing-cc57d.firebaseapp.com",
     projectId: "printer-thing-cc57d",
     storageBucket: "printer-thing-cc57d.firebasestorage.app",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    messagingSenderId: "343119822017",
+    appId: "1:343119822017:web:d70062cda1fe88c4d3e840"
 };
 
 const isFirebaseConfigured = Boolean(
@@ -26,12 +23,12 @@ if (isFirebaseConfigured) {
     try {
         firebase.initializeApp(firebaseConfig);
         window.db = firebase.firestore();
-        console.log("[Firebase] Initialized successfully for Cloud Printing!");
+        console.log("✓ [Firebase] Cloud Queue initialized successfully!");
     } catch (e) {
-        console.error("[Firebase] Initialization error:", e);
+        console.error("✗ [Firebase] Initialization error:", e);
         window.db = null;
     }
 } else {
-    console.log("[Firebase] Not configured or running in Local Network mode.");
+    console.log("ℹ [Firebase] Running in local server mode.");
     window.db = null;
 }
