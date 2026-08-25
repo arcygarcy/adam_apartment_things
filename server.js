@@ -101,83 +101,73 @@ app.post('/print', express.raw({ type: 'application/octet-stream', limit: '10mb'
 
 // Optional Firebase Cloud Queue Listener for GitHub Pages mode
 function initFirebaseSubscriber() {
-    const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
     const webConfigPath = path.join(__dirname, 'firebase-config.json');
-    
-    let db = null;
-    
-    if (fs.existsSync(serviceAccountPath)) {
-        try {
-            const firebaseAdmin = require('firebase-admin');
-            const serviceAccount = require(serviceAccountPath);
-            firebaseAdmin.initializeApp({
-                credential: firebaseAdmin.credential.cert(serviceAccount)
-            });
-            db = firebaseAdmin.firestore();
-            console.log("✓ [Firebase] Admin SDK initialized with service account key!");
-        } catch (e) {
-            console.error("Failed to initialize firebase-admin:", e.message);
-        }
-    } else if (fs.existsSync(webConfigPath)) {
-        try {
-            const { initializeApp } = require('firebase/app');
-            const { getFirestore, collection, query, where, onSnapshot, doc, setDoc } = require('firebase/firestore');
-            const cfg = JSON.parse(fs.readFileSync(webConfigPath, 'utf8'));
-            const fbApp = initializeApp(cfg);
-            db = getFirestore(fbApp);
-            console.log("✓ [Firebase] Web SDK initialized for Raspberry Pi subscriber!");
-        } catch (e) {
-            console.error("Failed to initialize firebase web SDK:", e.message);
-        }
-    }
-
-    if (!db) {
-        console.log("ℹ Firebase subscriber not active (No firebase-service-account.json or firebase-config.json found). Running in local HTTP mode.");
+    if (!fs.existsSync(webConfigPath)) {
+        console.log("ℹ Firebase subscriber not active (firebase-config.json not found). Running in local HTTP mode.");
         return;
     }
 
-    console.log("⚡ [Cloud Queue] Subscribed to Firestore collection 'print_jobs'...");
+    try {
+        const { initializeApp } = require('firebase/app');
+        const { getFirestore, collection, query, where, getDocs, onSnapshot, deleteDoc, doc, setDoc } = require('firebase/firestore');
+        const cfg = JSON.parse(fs.readFileSync(webConfigPath, 'utf8'));
+        const fbApp = initializeApp(cfg);
+        const db = getFirestore(fbApp);
 
-    // Sync order counter to Firestore
-    const syncCounterToFirestore = async (count) => {
-        try {
-            if (db.collection) {
-                await db.collection('order_counter').doc('main').set({ orderCounter: count, updatedAt: new Date().toISOString() });
-            }
-        } catch (err) {
-            console.error("Error updating Firestore order_counter:", err.message);
-        }
-    };
+        console.log("✓ [Firebase] Modular SDK initialized for Raspberry Pi subscriber!");
+        console.log("⚡ [Cloud Queue] Subscribed to Firestore collection 'print_jobs'...");
 
-    syncCounterToFirestore(orderCounter);
+        let isProcessing = false;
 
-    let isProcessing = false;
-    
-    if (db.collection) {
-        db.collection('print_jobs').where('status', '==', 'pending').onSnapshot(async (snapshot) => {
-            if (snapshot.empty || isProcessing) return;
+        const processPendingJobs = async () => {
+            if (isProcessing) return;
             isProcessing = true;
+            try {
+                const q = query(collection(db, 'print_jobs'), where('status', '==', 'pending'));
+                const snap = await getDocs(q);
+                if (snap && !snap.empty) {
+                    for (const d of snap.docs) {
+                        const data = d.data();
+                        if (!data || !data.payload) continue;
 
-            for (const docSnapshot of snapshot.docs) {
-                const data = docSnapshot.data();
-                if (!data || !data.payload) continue;
-
-                console.log(`[Cloud Queue] Processing Order #${data.orderNumber || '?'} (Doc ID: ${docSnapshot.id})`);
-                const rawImageData = Buffer.from(data.payload, 'base64');
-                
-                try {
-                    const result = await executePrintJob(rawImageData);
-                    await syncCounterToFirestore(result.nextOrder);
-                    // Immediately delete document from cloud after printing (zero persistent storage needed)
-                    await docSnapshot.ref.delete();
-                    console.log(`[Cloud Queue] Job ${docSnapshot.id} completed & deleted from cloud queue!`);
-                } catch (err) {
-                    console.error(`[Cloud Queue] Job ${docSnapshot.id} failed:`, err);
-                    await docSnapshot.ref.update({ status: 'error', errorMsg: err.message });
+                        console.log(`[Cloud Queue] Processing Order #${data.orderNumber || '?'} (Doc ID: ${d.id})`);
+                        const rawImageData = Buffer.from(data.payload, 'base64');
+                        
+                        try {
+                            const result = await executePrintJob(rawImageData);
+                            try {
+                                await setDoc(doc(db, 'order_counter', 'main'), { orderCounter: result.nextOrder, updatedAt: new Date().toISOString() });
+                            } catch (counterErr) {}
+                            
+                            await deleteDoc(doc(db, 'print_jobs', d.id));
+                            console.log(`✓ [Cloud Queue] Job ${d.id} printed & removed from queue!`);
+                        } catch (err) {
+                            console.error(`[Cloud Queue] Job ${d.id} print error:`, err.message);
+                        }
+                    }
                 }
+            } catch (e) {
+                console.error("[Cloud Queue] Worker error:", e.message);
+            } finally {
+                isProcessing = false;
             }
-            isProcessing = false;
+        };
+
+        // Realtime snapshot listener
+        onSnapshot(query(collection(db, 'print_jobs'), where('status', '==', 'pending')), async (snap) => {
+            if (snap && !snap.empty) {
+                await processPendingJobs();
+            }
+        }, (err) => {
+            console.error("Firestore onSnapshot warning:", err.message);
         });
+
+        // 2-second fast poll fallback loop
+        setInterval(processPendingJobs, 2000);
+        processPendingJobs();
+
+    } catch (e) {
+        console.error("Failed to initialize firebase SDK:", e.message);
     }
 }
 

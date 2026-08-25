@@ -8,6 +8,8 @@ firebase-config.json
 firebase-service-account.json
 lights/listener/config.json
 order_counter.json
+firestore.rules
+firebase.json
 
 # System & Logs
 *.log
