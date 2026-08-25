@@ -51,18 +51,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function handleImage(file) {
+    async function handleImage(file) {
         if (!file.type.startsWith('image/')) {
             alert('Please select an image file.');
             return;
         }
 
+        const targetMaxDim = 600; // Thermal printer printable width is 576 dots
+
+        // Strategy 1: Hardware-Accelerated Decode & Downsample via createImageBitmap (iOS 15+, Android Chrome)
+        // Decodes directly at 600px resolution using ~3MB RAM instead of 190MB RAM for 48MP photos
+        if ('createImageBitmap' in window) {
+            try {
+                let bitmap;
+                try {
+                    bitmap = await createImageBitmap(file, {
+                        resizeWidth: targetMaxDim,
+                        resizeQuality: 'medium'
+                    });
+                } catch (e) {
+                    bitmap = await createImageBitmap(file);
+                }
+
+                const offCanvas = document.createElement('canvas');
+                let w = bitmap.width;
+                let h = bitmap.height;
+
+                if (w > targetMaxDim || h > targetMaxDim) {
+                    if (w > h) {
+                        h = Math.round((h * targetMaxDim) / w);
+                        w = targetMaxDim;
+                    } else {
+                        w = Math.round((w * targetMaxDim) / h);
+                        h = targetMaxDim;
+                    }
+                }
+
+                offCanvas.width = w;
+                offCanvas.height = h;
+                const offCtx = offCanvas.getContext('2d');
+                offCtx.drawImage(bitmap, 0, 0, w, h);
+                if (bitmap.close) bitmap.close(); // Instantly release GPU memory handle
+
+                const scaledImg = new Image();
+                scaledImg.onload = () => {
+                    originalImage = scaledImg;
+                    fileInput.value = '';
+                    offCanvas.width = 0;
+                    offCanvas.height = 0;
+                    document.querySelector('.preview-container').style.display = 'block';
+                    processImage();
+                    document.querySelector('.preview-container').scrollIntoView({ behavior: 'smooth' });
+                };
+                scaledImg.src = offCanvas.toDataURL('image/jpeg', 0.8);
+                return;
+            } catch (bitmapErr) {
+                console.warn("createImageBitmap failed, using image fallback:", bitmapErr);
+            }
+        }
+
+        // Strategy 2: Traditional Image Object Fallback
         const objectUrl = URL.createObjectURL(file);
         const img = new Image();
         
         img.onload = () => {
-            // Downscale immediately to max 800px to keep browser memory lightweight
-            const maxDim = 800;
+            const maxDim = 600;
             let w = img.width;
             let h = img.height;
             
@@ -87,17 +140,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 originalImage = scaledImg;
                 URL.revokeObjectURL(objectUrl);
                 fileInput.value = '';
-                
+                offCanvas.width = 0;
+                offCanvas.height = 0;
                 document.querySelector('.preview-container').style.display = 'block';
                 processImage();
                 document.querySelector('.preview-container').scrollIntoView({ behavior: 'smooth' });
             };
-            scaledImg.src = offCanvas.toDataURL('image/jpeg', 0.85);
+            scaledImg.src = offCanvas.toDataURL('image/jpeg', 0.8);
         };
         
         img.onerror = () => {
             URL.revokeObjectURL(objectUrl);
-            alert("Failed to load image. Please try a smaller photo.");
+            alert("Failed to load image. Please try selecting a smaller photo.");
         };
         
         img.src = objectUrl;
