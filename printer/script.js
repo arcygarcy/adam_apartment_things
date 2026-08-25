@@ -348,15 +348,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function processStandardRasterImage(mode) {
         const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
         
-        let width = originalImage.width;
-        let height = originalImage.height;
-        
-        if (width > PRINTER_WIDTH_DOTS) {
-            height = Math.round((height * PRINTER_WIDTH_DOTS) / width);
-            width = PRINTER_WIDTH_DOTS;
-        }
-        
-        width = Math.floor(width / 8) * 8;
+        // Always scale image to fill 100% of receipt paper width (576 dots)
+        const width = PRINTER_WIDTH_DOTS;
+        const height = Math.round((originalImage.height * width) / originalImage.width);
         
         previewCanvas.width = width;
         previewCanvas.height = height;
