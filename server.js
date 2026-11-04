@@ -58,13 +58,12 @@ async function executePrintJob(rawImageData) {
     const finalPrintData = Buffer.concat([initCmd, rawImageData, cutCmd]);
     
     const printedOrder = orderCounter;
-    orderCounter++;
-    saveOrderCounter(orderCounter);
     
     const linuxPrinterPath = '/dev/usb/lp0';
     if (fs.existsSync(linuxPrinterPath)) {
+        let fd = null;
         try {
-            const fd = fs.openSync(linuxPrinterPath, 'w');
+            fd = fs.openSync(linuxPrinterPath, 'w');
             const CHUNK_SIZE = 2048;
             for (let offset = 0; offset < finalPrintData.length; offset += CHUNK_SIZE) {
                 const chunk = finalPrintData.slice(offset, offset + CHUNK_SIZE);
@@ -72,16 +71,23 @@ async function executePrintJob(rawImageData) {
                 const stop = Date.now() + 15;
                 while (Date.now() < stop) {}
             }
-            fs.closeSync(fd);
+            orderCounter++;
+            saveOrderCounter(orderCounter);
             console.log(`✓ [Printer] Order #${printedOrder} printed successfully via /dev/usb/lp0!`);
             return { success: true, message: `Order #${printedOrder} Printed!`, nextOrder: orderCounter };
         } catch (linuxError) {
             console.error('Linux lp0 write error:', linuxError);
+        } finally {
+            if (fd !== null) {
+                try { fs.closeSync(fd); } catch (e) {}
+            }
         }
     }
 
     try {
         await printViaUsb(finalPrintData);
+        orderCounter++;
+        saveOrderCounter(orderCounter);
         return { success: true, message: `Order #${printedOrder} Printed!`, nextOrder: orderCounter };
     } catch (error) {
         console.error('WebUSB print failed:', error);

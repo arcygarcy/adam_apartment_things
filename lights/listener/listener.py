@@ -3,10 +3,14 @@ import paho.mqtt.client as mqtt
 import json
 import threading
 import os
+import sys
 import time
 import colorsys
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
 
 # --- LOAD CONFIG FROM FILE ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,7 +96,10 @@ def build_expected_dps(d, action, value=None, extra=None):
         # Dim / adjust brightness of the bulb's current color or white mode
         scaled_val = max(10, min(1000, int(round(brightness_pct * 10))))
         cur_status = d.status()
-        cur_dps = cur_status.get('dps', {}) if isinstance(cur_status, dict) else {}
+        if not isinstance(cur_status, dict) or 'dps' not in cur_status:
+            # Return None so toggle_light retries status() instead of assuming white mode
+            return None
+        cur_dps = cur_status['dps']
         if cur_dps.get('21') == 'colour' and isinstance(cur_dps.get('24'), str) and len(cur_dps['24']) == 12:
             hue_sat = cur_dps['24'][:8]
             return {'20': True, '21': 'colour', '24': f"{hue_sat}{scaled_val:04x}"}
@@ -214,7 +221,7 @@ def on_message(client, userdata, msg):
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
 client.on_message = on_message
-client.connect(MQTT_BROKER, MQTT_PORT, 60)
+client.reconnect_delay_set(min_delay=1, max_delay=30)
 
 # Earliest sunset time (hour, minute) by month (1-12) in local time (America/Los_Angeles)
 EARLIEST_SUNSET_BY_MONTH = {
@@ -270,4 +277,11 @@ def poll_loop():
 threading.Thread(target=scheduler_loop, daemon=True).start()
 threading.Thread(target=poll_loop, daemon=True).start()
 print("Starting Listener (Room Mode)...")
-client.loop_forever()
+
+while True:
+    try:
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_forever()
+    except Exception as e:
+        print(f"MQTT connection error, retrying in 5s: {e}")
+        time.sleep(5)

@@ -380,6 +380,8 @@
         client.publish(TOPIC_CMD, JSON.stringify({ action: "status" }));
     });
 
+    let hasSyncedInitialBrightness = false;
+
     client.on('message', (topic, message) => {
         if (topic === TOPIC_STATUS) {
             const data = JSON.parse(message.toString());
@@ -391,6 +393,15 @@
                 ring.classList.remove('on');
                 statusText.innerText = "OFF";
                 statusText.style.color = "#475569";
+            }
+
+            if (!hasSyncedInitialBrightness && Array.isArray(data.devices) && data.devices.length > 0) {
+                const b = parseInt(data.devices[0].brightness, 10);
+                if (!isNaN(b) && b >= 1 && b <= 100) {
+                    hasSyncedInitialBrightness = true;
+                    onBrightnessInput(b);
+                    brightnessSlider.value = b;
+                }
             }
         }
     });
@@ -430,9 +441,6 @@
             payload.color = selectedColor;
         }
         client.publish(TOPIC_CMD, JSON.stringify(payload));
-        // Clear pending color after applying so subsequent Dim/Brightness adjustments keep the current bulb color
-        selectedColor = null;
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
     }
 </script>
 
