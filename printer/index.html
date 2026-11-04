@@ -8,123 +8,151 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22 shape-rendering=%22crispEdges%22><path fill=%22%23F43F5E%22 d=%22M10 2h3v1h-3z%22/><path fill=%22%23FDE047%22 d=%22M11 1h1v1h-1z%22/><path fill=%22%23E11D48%22 d=%22M2 4h12v9H2z%22/><path fill=%22%23FDA4AF%22 d=%22M3 5h10v1H3z%22/><path fill=%22%231E1B4B%22 d=%22M6 6h4v4H6z%22/><path fill=%22%2338BDF8%22 d=%22M7 7h2v2H7z%22/><path fill=%22%23FFFFFF%22 d=%22M7 7h1v1H7z%22/><path fill=%22%23FFFFFF%22 d=%22M5 13h6v3H5z%22/><path fill=%22%2394A3B8%22 d=%22M6 14h4v1H6z%22/></svg>">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <header style="position: relative;">
-            <a href="../" style="position: absolute; left: 0; top: 0; color: #94a3b8; text-decoration: none; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 4px;">&larr; Hub</a>
-            <h1>House Guestbook</h1>
-            <p>Snap a photo and print it instantly!</p>
-        </header>
-
-        <main>
-            <div class="card upload-card" id="uploadSection">
-                <label for="fileInput" class="drop-zone" id="dropZone">
-                    <span class="drop-text">📷 Tap here to Take or Upload a Photo!</span>
-                    <input type="file" id="fileInput" accept="image/*,.heic,.heif" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none;">
-                </label>
-                
-                <div class="preview-container" style="display: none;">
-                    <h3>Print Preview</h3>
-                    <div class="canvas-wrapper">
-                        <canvas id="previewCanvas"></canvas>
-                    </div>
-                    
-                    <div class="actions">
-                        <div class="control-group">
-                            <label for="styleSelect">Rendering & Greyscale Mode:</label>
-                            <select id="styleSelect" class="styled-select">
-                                <option value="floyd" selected>Floyd-Steinberg Dither (Smooth Photo)</option>
-                                <option value="atkinson">Atkinson Dither (Retro Macintosh 1-Bit)</option>
-                                <option value="bayer">Ordered Bayer Matrix (8-Bit Pixel Grid)</option>
-                                <option value="halftone">Halftone Dots (Vintage Newspaper Screen)</option>
-                                <option value="stucki">Stucki Dither (Sharp Detail)</option>
-                                <option value="threshold">Binary High Contrast (Logos & Line Art)</option>
-                                <option value="sobel">Line Art Sketch (Edge Outlines)</option>
-                                <option value="ascii">ASCII Art (Text Characters)</option>
-                            </select>
-                        </div>
-
-                        <div class="presets-container">
-                            <span class="preset-label">Quick Presets:</span>
-                            <div class="preset-pills">
-                                <button type="button" class="preset-pill active" data-preset="photo">Smooth Photo</button>
-                                <button type="button" class="preset-pill" data-preset="sketch">Line Art</button>
-                                <button type="button" class="preset-pill" data-preset="retro">Retro Mac</button>
-                                <button type="button" class="preset-pill" data-preset="newspaper">Newspaper</button>
-                                <button type="button" class="preset-pill" data-preset="pixel">Pixel Art</button>
-                                <button type="button" class="preset-pill" data-preset="ascii">ASCII Art</button>
-                                <button type="button" class="preset-pill" data-preset="poster">High Contrast</button>
-                            </div>
-                        </div>
-
-                        <div id="asciiControls" class="sliders-grid" style="display: none; background: rgba(225, 29, 72, 0.08); padding: 1rem; border-radius: 8px; border: 1px solid rgba(225, 29, 72, 0.25);">
-                            <div class="control-group">
-                                <label for="asciiRamp">ASCII Character Set:</label>
-                                <select id="asciiRamp" class="styled-select">
-                                    <option value="standard">Standard (@%#*+=-:. )</option>
-                                    <option value="blocks">Solid Blocks (█▓▒░ )</option>
-                                    <option value="matrix">Matrix Binary (10 )</option>
-                                    <option value="detailed">Ultra Detailed (64 Chars)</option>
-                                </select>
-                            </div>
-
-                            <div class="control-group">
-                                <div class="slider-header">
-                                    <label for="asciiColsSlider">ASCII Detail & Micro-Font Width:</label>
-                                    <span id="asciiColsVal" class="slider-value">96 Columns (HD)</span>
-                                </div>
-                                <input type="range" id="asciiColsSlider" min="32" max="144" step="8" value="96">
-                            </div>
-                        </div>
-
-                        <div class="control-group">
-                            <label for="frameSelect">Photo Frame & Border Overlay:</label>
-                            <select id="frameSelect" class="styled-select">
-                                <option value="none" selected>None (Plain Edge)</option>
-                                <option value="polaroid">Polaroid Guestbook Frame (With Date)</option>
-                                <option value="stamp">Postage Stamp Perforated Border</option>
-                                <option value="vintage">Vintage Corner Stars Border</option>
-                            </select>
-                        </div>
-
-                        <div class="sliders-grid">
-                            <div class="control-group">
-                                <div class="slider-header">
-                                    <label for="thresholdSlider">Brightness (Lighting):</label>
-                                    <span id="brightnessVal" class="slider-value">128</span>
-                                </div>
-                                <input type="range" id="thresholdSlider" min="0" max="255" value="128">
-                            </div>
-
-                            <div class="control-group">
-                                <div class="slider-header">
-                                    <label for="contrastSlider">Contrast:</label>
-                                    <span id="contrastVal" class="slider-value">100%</span>
-                                </div>
-                                <input type="range" id="contrastSlider" min="50" max="200" value="100">
-                            </div>
-                        </div>
-
-                        <div class="control-group" style="margin-top: 0.5rem;">
-                            <label for="noteInput">Add a Note (optional):</label>
-                            <textarea id="noteInput" placeholder="Write a message to print..." rows="2" class="styled-textarea"></textarea>
-                        </div>
-                        
-                        <button id="printBtn" class="btn print-btn">
-                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                            Print
-                        </button>
-                    </div>
+        <div class="window">
+            <div class="title-bar">
+                <div class="title-bar-text">
+                    <span>🖨️</span>
+                    <span>guestbook.exe - House Guestbook Thermal Printer</span>
+                </div>
+                <div class="title-bar-controls">
+                    <button class="title-btn" type="button" aria-label="Minimize">_</button>
+                    <button class="title-btn" type="button" aria-label="Maximize">□</button>
+                    <a href="../" class="title-btn" title="Back to Hub" aria-label="Close">✕</a>
                 </div>
             </div>
-            
-            <div id="statusAlert" class="card help-card" style="display: none; text-align: center;">
-                <h3 id="statusTitle">Printing...</h3>
-                <p id="statusMsg">Please wait</p>
+
+            <div class="menu-bar">
+                <a href="../" class="hub-link">&larr; Back to Hub</a>
+                <span class="menu-subtitle">Snap a photo and print it instantly!</span>
             </div>
-        </main>
+
+            <main class="window-body">
+                <div class="card upload-card" id="uploadSection">
+                    <fieldset>
+                        <legend>1. Select or Capture Image</legend>
+                        <label for="fileInput" class="drop-zone" id="dropZone">
+                            <span class="drop-text">📷 Tap here to Take or Upload a Photo!</span>
+                            <input type="file" id="fileInput" accept="image/*,.heic,.heif" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none;">
+                        </label>
+                    </fieldset>
+                    
+                    <div class="preview-container" style="display: none;">
+                        <fieldset>
+                            <legend>2. Print Preview (576px Thermal Paper)</legend>
+                            <div class="canvas-wrapper">
+                                <canvas id="previewCanvas"></canvas>
+                            </div>
+                        </fieldset>
+                        
+                        <div class="actions">
+                            <fieldset>
+                                <legend>3. Rendering &amp; Dither Settings</legend>
+                                <div class="control-group">
+                                    <label for="styleSelect">Rendering &amp; Greyscale Mode:</label>
+                                    <select id="styleSelect" class="styled-select">
+                                        <option value="floyd" selected>Floyd-Steinberg Dither (Smooth Photo)</option>
+                                        <option value="atkinson">Atkinson Dither (Retro Macintosh 1-Bit)</option>
+                                        <option value="bayer">Ordered Bayer Matrix (8-Bit Pixel Grid)</option>
+                                        <option value="halftone">Halftone Dots (Vintage Newspaper Screen)</option>
+                                        <option value="stucki">Stucki Dither (Sharp Detail)</option>
+                                        <option value="threshold">Binary High Contrast (Logos &amp; Line Art)</option>
+                                        <option value="sobel">Line Art Sketch (Edge Outlines)</option>
+                                        <option value="ascii">ASCII Art (Text Characters)</option>
+                                    </select>
+                                </div>
+
+                                <div class="presets-container">
+                                    <span class="preset-label">Quick Presets:</span>
+                                    <div class="preset-pills">
+                                        <button type="button" class="preset-pill active" data-preset="photo">Smooth Photo</button>
+                                        <button type="button" class="preset-pill" data-preset="sketch">Line Art</button>
+                                        <button type="button" class="preset-pill" data-preset="retro">Retro Mac</button>
+                                        <button type="button" class="preset-pill" data-preset="newspaper">Newspaper</button>
+                                        <button type="button" class="preset-pill" data-preset="pixel">Pixel Art</button>
+                                        <button type="button" class="preset-pill" data-preset="ascii">ASCII Art</button>
+                                        <button type="button" class="preset-pill" data-preset="poster">High Contrast</button>
+                                    </div>
+                                </div>
+
+                                <div id="asciiControls" class="sliders-grid ascii-box" style="display: none;">
+                                    <div class="control-group">
+                                        <label for="asciiRamp">ASCII Character Set:</label>
+                                        <select id="asciiRamp" class="styled-select">
+                                            <option value="standard">Standard (@%#*+=-:. )</option>
+                                            <option value="blocks">Solid Blocks (█▓▒░ )</option>
+                                            <option value="matrix">Matrix Binary (10 )</option>
+                                            <option value="detailed">Ultra Detailed (64 Chars)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="control-group">
+                                        <div class="slider-header">
+                                            <label for="asciiColsSlider">ASCII Detail &amp; Micro-Font Width:</label>
+                                            <span id="asciiColsVal" class="slider-value">96 Columns (HD)</span>
+                                        </div>
+                                        <input type="range" id="asciiColsSlider" min="32" max="144" step="8" value="96">
+                                    </div>
+                                </div>
+
+                                <div class="control-group">
+                                    <label for="frameSelect">Photo Frame &amp; Border Overlay:</label>
+                                    <select id="frameSelect" class="styled-select">
+                                        <option value="none" selected>None (Plain Edge)</option>
+                                        <option value="polaroid">Polaroid Guestbook Frame (With Date)</option>
+                                        <option value="stamp">Postage Stamp Perforated Border</option>
+                                        <option value="vintage">Vintage Corner Stars Border</option>
+                                    </select>
+                                </div>
+
+                                <div class="sliders-grid">
+                                    <div class="control-group">
+                                        <div class="slider-header">
+                                            <label for="thresholdSlider">Brightness (Lighting):</label>
+                                            <span id="brightnessVal" class="slider-value">128</span>
+                                        </div>
+                                        <input type="range" id="thresholdSlider" min="0" max="255" value="128">
+                                    </div>
+
+                                    <div class="control-group">
+                                        <div class="slider-header">
+                                            <label for="contrastSlider">Contrast:</label>
+                                            <span id="contrastVal" class="slider-value">100%</span>
+                                        </div>
+                                        <input type="range" id="contrastSlider" min="50" max="200" value="100">
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset>
+                                <legend>4. Guestbook Message &amp; Print</legend>
+                                <div class="control-group">
+                                    <label for="noteInput">Add a Note (optional):</label>
+                                    <textarea id="noteInput" placeholder="Write a message to print..." rows="2" class="styled-textarea"></textarea>
+                                </div>
+                                
+                                <button id="printBtn" class="btn print-btn">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                    Print
+                                </button>
+                            </fieldset>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="statusAlert" class="card help-card" style="display: none; text-align: center;">
+                    <h3 id="statusTitle">Printing...</h3>
+                    <p id="statusMsg">Please wait</p>
+                </div>
+            </main>
+
+            <div class="status-bar">
+                <div class="status-bar-field">ESC/POS 80mm Thermal</div>
+                <div class="status-bar-field">Ready</div>
+            </div>
+        </div>
     </div>
     <!-- Firebase Compatibility SDKs for Cloud Queue Printing -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
