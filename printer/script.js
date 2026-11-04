@@ -22,12 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let originalImage = null;
 
+    // Reusable offscreen canvases to prevent WebKit/iOS Canvas GPU memory leaks
+    const sourceCanvas = document.createElement('canvas');
+    const scratchCanvas = document.createElement('canvas');
+
     // Constants for 80mm thermal printer (576 dots printable width)
     const PRINTER_WIDTH_DOTS = 576; 
 
-    // Handle File Upload / Camera Capture
-    dropZone.addEventListener('click', () => fileInput.click());
-    
+    // Handle File Upload / Camera Capture (native <label for="fileInput"> handles clicks reliably on iOS/Android)
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('dragover');
@@ -46,135 +48,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length) {
-            handleImage(e.target.files[0]);
+        const file = e.target.files && e.target.files[0];
+        // Always reset input immediately so selecting the same or another photo never silently fails
+        fileInput.value = '';
+        if (file) {
+            handleImage(file);
         }
     });
 
+    function commitDownscaledSource(source, srcWidth, srcHeight) {
+        const maxDim = 600; // Thermal printer printable width is 576 dots
+        let w = srcWidth;
+        let h = srcHeight;
+
+        if (w > maxDim || h > maxDim) {
+            if (w > h) {
+                h = Math.max(1, Math.round((h * maxDim) / w));
+                w = maxDim;
+            } else {
+                w = Math.max(1, Math.round((w * maxDim) / h));
+                h = maxDim;
+            }
+        }
+
+        sourceCanvas.width = w;
+        sourceCanvas.height = h;
+        const srcCtx = sourceCanvas.getContext('2d');
+        srcCtx.fillStyle = '#ffffff';
+        srcCtx.fillRect(0, 0, w, h);
+        srcCtx.drawImage(source, 0, 0, w, h);
+
+        originalImage = sourceCanvas;
+        const previewContainer = document.querySelector('.preview-container');
+        previewContainer.style.display = 'block';
+        processImage();
+        previewContainer.scrollIntoView({ behavior: 'smooth' });
+    }
+
     async function handleImage(file) {
-        if (!file.type.startsWith('image/')) {
+        const isImageType = (file.type && file.type.startsWith('image/')) ||
+            !file.type ||
+            /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(file.name || '');
+
+        if (!isImageType) {
             alert('Please select an image file.');
             return;
         }
 
-        const targetMaxDim = 600; // Thermal printer printable width is 576 dots
+        const dropText = dropZone.querySelector('.drop-text');
+        const defaultDropLabel = '📷 Tap here to Take or Upload a Photo!';
+        if (dropText) dropText.textContent = '⏳ Loading photo...';
 
-        // Strategy 1: Hardware-Accelerated Decode & Downsample via createImageBitmap (iOS 15+, Android Chrome)
-        // Decodes directly at 600px resolution using ~3MB RAM instead of 190MB RAM for 48MP photos
-        if ('createImageBitmap' in window) {
-            try {
-                let bitmap;
-                try {
-                    bitmap = await createImageBitmap(file, {
-                        resizeWidth: targetMaxDim,
-                        resizeQuality: 'medium'
-                    });
-                } catch (e) {
-                    bitmap = await createImageBitmap(file);
-                }
-
-                const offCanvas = document.createElement('canvas');
-                let w = bitmap.width;
-                let h = bitmap.height;
-
-                if (w > targetMaxDim || h > targetMaxDim) {
-                    if (w > h) {
-                        h = Math.round((h * targetMaxDim) / w);
-                        w = targetMaxDim;
-                    } else {
-                        w = Math.round((w * targetMaxDim) / h);
-                        h = targetMaxDim;
+        try {
+            // Strategy 1: Decode via Image object + ObjectURL first (most reliable for iOS EXIF orientation & HEIC)
+            const loadedViaImg = await new Promise((resolve) => {
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        commitDownscaledSource(img, img.naturalWidth || img.width, img.naturalHeight || img.height);
+                        resolve(true);
+                    } catch (err) {
+                        console.warn('Canvas draw from Image failed:', err);
+                        resolve(false);
+                    } finally {
+                        URL.revokeObjectURL(objectUrl);
                     }
-                }
-
-                offCanvas.width = w;
-                offCanvas.height = h;
-                const offCtx = offCanvas.getContext('2d');
-                offCtx.drawImage(bitmap, 0, 0, w, h);
-                if (bitmap.close) bitmap.close(); // Instantly release GPU memory handle
-
-                const scaledImg = new Image();
-                scaledImg.onload = () => {
-                    originalImage = scaledImg;
-                    fileInput.value = '';
-                    offCanvas.width = 0;
-                    offCanvas.height = 0;
-                    document.querySelector('.preview-container').style.display = 'block';
-                    processImage();
-                    document.querySelector('.preview-container').scrollIntoView({ behavior: 'smooth' });
                 };
-                scaledImg.src = offCanvas.toDataURL('image/jpeg', 0.8);
-                return;
-            } catch (bitmapErr) {
-                console.warn("createImageBitmap failed, using image fallback:", bitmapErr);
-            }
-        }
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(false);
+                };
+                img.src = objectUrl;
+            });
 
-        // Strategy 2: Traditional Image Object Fallback
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-        
-        img.onload = () => {
-            const maxDim = 600;
-            let w = img.width;
-            let h = img.height;
-            
-            if (w > maxDim || h > maxDim) {
-                if (w > h) {
-                    h = Math.round((h * maxDim) / w);
-                    w = maxDim;
-                } else {
-                    w = Math.round((w * maxDim) / h);
-                    h = maxDim;
+            if (loadedViaImg) return;
+
+            // Strategy 2: Fallback to createImageBitmap if Image tag failed
+            if ('createImageBitmap' in window) {
+                const bitmap = await createImageBitmap(file);
+                try {
+                    commitDownscaledSource(bitmap, bitmap.width, bitmap.height);
+                    return;
+                } finally {
+                    if (bitmap.close) bitmap.close();
                 }
             }
-            
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = w;
-            offCanvas.height = h;
-            const offCtx = offCanvas.getContext('2d');
-            offCtx.drawImage(img, 0, 0, w, h);
-            
-            const scaledImg = new Image();
-            scaledImg.onload = () => {
-                originalImage = scaledImg;
-                URL.revokeObjectURL(objectUrl);
-                fileInput.value = '';
-                offCanvas.width = 0;
-                offCanvas.height = 0;
-                document.querySelector('.preview-container').style.display = 'block';
-                processImage();
-                document.querySelector('.preview-container').scrollIntoView({ behavior: 'smooth' });
-            };
-            scaledImg.src = offCanvas.toDataURL('image/jpeg', 0.8);
-        };
-        
-        img.onerror = () => {
-            URL.revokeObjectURL(objectUrl);
-            alert("Failed to load image. Please try selecting a smaller photo.");
-        };
-        
-        img.src = objectUrl;
+
+            alert('Failed to load image. Please try another photo.');
+        } catch (err) {
+            console.error('Image upload error:', err);
+            alert('Failed to load image. Please try another photo.');
+        } finally {
+            if (dropText) dropText.textContent = defaultDropLabel;
+        }
     }
 
     const noteInput = document.getElementById('noteInput');
     let currentOrderNumber = 1;
-
-    // Fetch initial Order Number from backend
-    async function fetchOrderInfo() {
-        try {
-            const res = await fetch('/order-info');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.orderCounter) {
-                    currentOrderNumber = data.orderCounter;
-                    if (originalImage) processImage();
-                }
-            }
-        } catch (e) {
-            console.log("Using default order counter 1");
-        }
-    }
 
     if (noteInput) {
         noteInput.addEventListener('input', () => scheduleProcessImage());
@@ -282,12 +253,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const rampStr = asciiRamps[rampKey] || asciiRamps.standard;
         
         const charAspect = 0.55; 
-        const rows = Math.round((originalImage.height / originalImage.width) * cols * charAspect);
+        const rows = Math.max(1, Math.round((originalImage.height / originalImage.width) * cols * charAspect));
         
-        const sampleCanvas = document.createElement('canvas');
-        sampleCanvas.width = cols;
-        sampleCanvas.height = rows;
-        const sampleCtx = sampleCanvas.getContext('2d');
+        scratchCanvas.width = cols;
+        scratchCanvas.height = rows;
+        const sampleCtx = scratchCanvas.getContext('2d', { willReadFrequently: true });
         sampleCtx.drawImage(originalImage, 0, 0, cols, rows);
         
         const imgData = sampleCtx.getImageData(0, 0, cols, rows).data;
@@ -497,10 +467,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = srcCanvas.width;
         const h = srcCanvas.height;
 
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tempCtx = tempCanvas.getContext('2d');
+        scratchCanvas.width = w;
+        scratchCanvas.height = h;
+        const tempCtx = scratchCanvas.getContext('2d');
         tempCtx.drawImage(srcCanvas, 0, 0);
 
         const ctx = srcCanvas.getContext('2d');
@@ -520,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 4;
             ctx.strokeRect(2, 2, srcCanvas.width - 4, srcCanvas.height - 4);
 
-            ctx.drawImage(tempCanvas, sideMargin, topMargin, w - (sideMargin * 2), h);
+            ctx.drawImage(scratchCanvas, sideMargin, topMargin, w - (sideMargin * 2), h);
             ctx.strokeRect(sideMargin, topMargin, w - (sideMargin * 2), h);
 
             ctx.fillStyle = "black";
@@ -622,10 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let footerHeight = 25;
         let noteLines = [];
 
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tempCtx = tempCanvas.getContext('2d');
+        scratchCanvas.width = w;
+        scratchCanvas.height = h;
+        const tempCtx = scratchCanvas.getContext('2d');
         tempCtx.drawImage(srcCanvas, 0, 0);
 
         if (noteText.length > 0) {
@@ -648,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.font = "bold 34px 'Courier New', Courier, monospace";
         ctx.fillText(`Order #${currentOrderNumber}`, w / 2, 45);
 
-        ctx.drawImage(tempCanvas, 0, headerHeight);
+        ctx.drawImage(scratchCanvas, 0, headerHeight);
 
         if (noteText.length > 0) {
             const footerStartY = headerHeight + h + 35;

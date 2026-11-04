@@ -1,3 +1,2 @@
 tinytuya
 paho-mqtt
-requests

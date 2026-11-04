@@ -119,12 +119,11 @@ function initFirebaseSubscriber() {
 
         let isProcessing = false;
 
-        const processPendingJobs = async () => {
+        const processPendingJobs = async (incomingSnap = null) => {
             if (isProcessing) return;
             isProcessing = true;
             try {
-                const q = query(collection(db, 'print_jobs'), where('status', '==', 'pending'));
-                const snap = await getDocs(q);
+                const snap = incomingSnap || await getDocs(query(collection(db, 'print_jobs'), where('status', '==', 'pending')));
                 if (snap && !snap.empty) {
                     for (const d of snap.docs) {
                         const data = d.data();
@@ -156,14 +155,14 @@ function initFirebaseSubscriber() {
         // Realtime snapshot listener
         onSnapshot(query(collection(db, 'print_jobs'), where('status', '==', 'pending')), async (snap) => {
             if (snap && !snap.empty) {
-                await processPendingJobs();
+                await processPendingJobs(snap);
             }
         }, (err) => {
             console.error("Firestore onSnapshot warning:", err.message);
         });
 
-        // 2-second fast poll fallback loop
-        setInterval(processPendingJobs, 2000);
+        // 60-second fallback poll loop (onSnapshot handles realtime jobs immediately)
+        setInterval(() => processPendingJobs(), 60000);
         processPendingJobs();
 
     } catch (e) {

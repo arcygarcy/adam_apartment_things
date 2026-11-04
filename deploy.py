@@ -74,14 +74,29 @@ for local_rel, remote_path in files_to_upload:
 
 print("✓ All files successfully uploaded!")
 
-# Restart PM2 service on Raspberry Pi
-print("\nRestarting printer service on Raspberry Pi...")
-cmd = "export PATH=$PATH:/home/pi/.nvm/versions/node/$(ls /home/pi/.nvm/versions/node 2>/dev/null | tail -n 1)/bin; cd /home/pi/code/adam_apartment_things && npm install firebase --save && (pm2 restart printer || pm2 start server.js --name printer)"
-stdin, stdout, stderr = ssh.exec_command(cmd)
+# Configure 4:00 AM daily reboot, hardware watchdog, and restart PM2 services on Raspberry Pi
+print("\nConfiguring daily 4:00 AM reboot, hardware watchdog, and restarting PM2 services...")
+cmd = (
+    "export PATH=$PATH:/home/pi/.nvm/versions/node/$(ls /home/pi/.nvm/versions/node 2>/dev/null | tail -n 1)/bin; "
+    "cd /home/pi/code/adam_apartment_things && "
+    "chmod +x lights/start_listener.sh && "
+    "sudo systemctl disable --now light-listener.service 2>/dev/null || true && "
+    "echo '0 4 * * * root /sbin/shutdown -r now' | sudo tee /etc/cron.d/daily-pi-reboot >/dev/null && "
+    "sudo chmod 644 /etc/cron.d/daily-pi-reboot && "
+    "sudo sed -i 's/^#*RuntimeWatchdogSec=.*/RuntimeWatchdogSec=15/' /etc/systemd/system.conf && "
+    "([ -d node_modules/firebase ] || npm install firebase --save) && "
+    "(pm2 delete printer 2>/dev/null || true) && "
+    "pm2 start server.js --name printer --max-memory-restart 200M --node-args='--max-old-space-size=192' && "
+    "pm2 restart lights && "
+    "pm2 save"
+)
+stdin, stdout, stderr = ssh.exec_command(cmd, timeout=60)
 
 out_text = stdout.read().decode('utf-8', errors='replace')
 err_text = stderr.read().decode('utf-8', errors='replace')
 print("Service restart output:\n", out_text)
+if err_text.strip():
+    print("Stderr:\n", err_text)
 
 sftp.close()
 ssh.close()

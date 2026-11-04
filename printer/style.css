@@ -133,6 +133,8 @@ h2 {
 }
 
 .drop-zone {
+    display: block;
+    position: relative;
     border: 2px dashed var(--border);
     border-radius: 8px;
     padding: 3rem 2rem;
@@ -140,6 +142,8 @@ h2 {
     cursor: pointer;
     transition: all 0.2s;
     background-color: rgba(26, 8, 12, 0.6);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .drop-zone:hover, .drop-zone.dragover {

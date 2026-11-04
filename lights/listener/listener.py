@@ -4,8 +4,7 @@ import json
 import threading
 import os
 import time
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 # --- LOAD CONFIG FROM FILE ---
@@ -131,23 +130,24 @@ client.on_connect = on_connect
 client.on_message = on_message
 client.connect(MQTT_BROKER, MQTT_PORT, 60)
 
-def get_sunset_time():
-    if not LATITUDE or not LONGITUDE:
-        return None
-    try:
-        url = f"https://api.sunrise-sunset.org/json?lat={LATITUDE}&lng={LONGITUDE}&formatted=0"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data["status"] == "OK":
-            sunset_utc = data["results"]["sunset"]
-            dt_utc = datetime.fromisoformat(sunset_utc)
-            return dt_utc.astimezone(TZ)
-    except Exception as e:
-        print(f"Error fetching sunset: {e}")
-    return None
+# Earliest sunset time (hour, minute) by month (1-12) in local time (America/Los_Angeles)
+EARLIEST_SUNSET_BY_MONTH = {
+    1:  (17, 1),   # Jan: 5:01 PM -> ON at 4:01 PM
+    2:  (17, 33),  # Feb: 5:33 PM -> ON at 4:33 PM
+    3:  (18, 3),   # Mar: 6:03 PM -> ON at 5:03 PM
+    4:  (19, 32),  # Apr: 7:32 PM -> ON at 6:32 PM
+    5:  (20, 0),   # May: 8:00 PM -> ON at 7:00 PM
+    6:  (20, 25),  # Jun: 8:25 PM -> ON at 7:25 PM
+    7:  (20, 19),  # Jul: 8:19 PM -> ON at 7:19 PM
+    8:  (19, 40),  # Aug: 7:40 PM -> ON at 6:40 PM
+    9:  (18, 54),  # Sep: 6:54 PM -> ON at 5:54 PM
+    10: (18, 12),  # Oct: 6:12 PM -> ON at 5:12 PM
+    11: (16, 51),  # Nov: 4:51 PM -> ON at 3:51 PM
+    12: (16, 50),  # Dec: 4:50 PM -> ON at 3:50 PM
+}
 
 def scheduler_loop():
-    print(f"Scheduler started. Location: {LATITUDE}, {LONGITUDE} ({TIMEZONE})")
+    print(f"Scheduler started using static monthly earliest sunset table ({TIMEZONE})")
     last_off_date = None
     last_on_date = None
     
@@ -157,7 +157,7 @@ def scheduler_loop():
             today = now.date()
             
             # --- OFF EVENT: 2:30 AM ---
-            if now.hour == 2 and now.minute == 30 and last_off_date != today:
+            if now.hour == 2 and 30 <= now.minute <= 31 and last_off_date != today:
                 print(f"Scheduled Event: Turning off lights (2:30 AM)")
                 for name in devices:
                     threading.Thread(target=toggle_light, args=(name, "off"), daemon=True).start()
@@ -165,17 +165,17 @@ def scheduler_loop():
                 time.sleep(1)
                 publish_all_status(client)
 
-            # --- ON EVENT: 1 hour before sunset ---
-            sunset = get_sunset_time()
-            if sunset:
-                on_time = sunset - timedelta(hours=1)
-                if abs((now - on_time).total_seconds()) < 60 and last_on_date != today:
-                    print(f"Scheduled Event: Turning on lights (Sunset was {sunset.strftime('%H:%M')}, triggering at {on_time.strftime('%H:%M')})")
-                    for name in devices:
-                        threading.Thread(target=toggle_light, args=(name, "on"), daemon=True).start()
-                    last_on_date = today
-                    time.sleep(1)
-                    publish_all_status(client)
+            # --- ON EVENT: 1 hour before earliest monthly sunset ---
+            sunset_hour, sunset_min = EARLIEST_SUNSET_BY_MONTH[now.month]
+            on_hour = sunset_hour - 1
+            on_min = sunset_min
+            if now.hour == on_hour and on_min <= now.minute <= on_min + 1 and last_on_date != today:
+                print(f"Scheduled Event: Turning on lights (Month {now.month} earliest sunset {sunset_hour:02d}:{sunset_min:02d}, triggering at {on_hour:02d}:{on_min:02d})")
+                for name in devices:
+                    threading.Thread(target=toggle_light, args=(name, "on"), daemon=True).start()
+                last_on_date = today
+                time.sleep(1)
+                publish_all_status(client)
             
         except Exception as e:
             print(f"Scheduler Error: {e}")
