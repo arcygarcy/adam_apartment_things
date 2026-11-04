@@ -145,18 +145,18 @@ body {
 }
 
 fieldset {
-    border: none;
-    box-shadow: inset 1px 1px var(--win-dark), inset -1px -1px var(--win-white), 1px 1px var(--win-white), -1px -1px var(--win-dark);
+    border: 2px groove #f0f0f0;
     padding: 10px 10px 10px;
     margin: 0 0 10px 0;
 }
 
 legend {
-    padding: 0 5px;
+    background: var(--win-gray);
+    padding: 0 6px;
     font-size: 11px;
     font-weight: bold;
     color: var(--win-text);
-    margin-left: 4px;
+    margin-left: 6px;
 }
 
 .drop-zone {
