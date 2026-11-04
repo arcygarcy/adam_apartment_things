@@ -173,21 +173,34 @@
             appearance: none;
         }
 
-        .slider-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
+        .brightness-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
         }
 
-        .slider-header label {
-            margin-bottom: 0;
-        }
-
-        .slider-val {
-            font-size: 0.75rem;
+        .btn-level {
+            padding: 12px 0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            background: #1e293b;
+            color: #94a3b8;
+            font-size: 0.8rem;
             font-weight: 700;
-            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-level.active {
+            background: var(--accent);
+            color: #0f172a;
+            border-color: var(--accent);
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+        }
+
+        .btn-level:active {
+            transform: scale(0.95);
         }
 
         .broker-status {
@@ -214,30 +227,30 @@
         </div>
 
         <div class="slider-group">
-            <div class="slider-header">
-                <label for="brightness">Dimmer / Brightness</label>
-                <span id="brightness-val" class="slider-val">100%</span>
+            <label>Brightness</label>
+            <div class="brightness-grid">
+                <button type="button" class="btn-level" data-level="10" onclick="setBrightness(10)">10%</button>
+                <button type="button" class="btn-level" data-level="33" onclick="setBrightness(33)">33%</button>
+                <button type="button" class="btn-level" data-level="66" onclick="setBrightness(66)">66%</button>
+                <button type="button" class="btn-level active" data-level="100" onclick="setBrightness(100)">100%</button>
             </div>
-            <input type="range" id="brightness" min="1" max="100" value="100" oninput="onBrightnessInput(this.value)">
         </div>
 
         <div class="slider-group">
             <label>Mood Color</label>
             <div class="color-presets">
-                <div class="swatch" style="background: #ff0000" onclick="setSwatch('#ff0000', this)"></div>
-                <div class="swatch" style="background: #ffa500" onclick="setSwatch('#ffa500', this)"></div>
-                <div class="swatch" style="background: #ffff00" onclick="setSwatch('#ffff00', this)"></div>
-                <div class="swatch" style="background: #00ff00" onclick="setSwatch('#00ff00', this)"></div>
-                <div class="swatch" style="background: #00ffff" onclick="setSwatch('#00ffff', this)"></div>
-                <div class="swatch" style="background: #0000ff" onclick="setSwatch('#0000ff', this)"></div>
-                <div class="swatch" style="background: #ff00ff" onclick="setSwatch('#ff00ff', this)"></div>
+                <div class="swatch" style="background: #ff0000" onclick="selectColor('#ff0000', this)"></div>
+                <div class="swatch" style="background: #ffa500" onclick="selectColor('#ffa500', this)"></div>
+                <div class="swatch" style="background: #ffff00" onclick="selectColor('#ffff00', this)"></div>
+                <div class="swatch" style="background: #00ff00" onclick="selectColor('#00ff00', this)"></div>
+                <div class="swatch" style="background: #00ffff" onclick="selectColor('#00ffff', this)"></div>
+                <div class="swatch" style="background: #0000ff" onclick="selectColor('#0000ff', this)"></div>
+                <div class="swatch" style="background: #ff00ff" onclick="selectColor('#ff00ff', this)"></div>
                 <div id="custom-swatch" class="swatch swatch-custom" title="Pick custom color">
                     <input type="color" id="custom-color" value="#ff8800">
                 </div>
             </div>
         </div>
-
-        <button class="btn btn-apply" onclick="applySettings()">APPLY SETTINGS</button>
 
         <div id="broker-status" class="broker-status">CONNECTING...</div>
     </div>
@@ -248,39 +261,85 @@
     const TOPIC_STATUS = "adam/lights/candle_controller/status";
     const BROKER = "wss://broker.hivemq.com:8884/mqtt"; 
 
-    let selectedColor = null;
+    let currentBrightness = 100;
     let hasSyncedInitialBrightness = false;
+    let customColorDebounce = null;
+    let lastSentCustomColor = null;
 
     const client = mqtt.connect(BROKER);
     
     const ring = document.getElementById('status-ring');
     const statusText = document.getElementById('status-text');
     const brokerStatus = document.getElementById('broker-status');
-    const brightnessSlider = document.getElementById('brightness');
-    const brightnessVal = document.getElementById('brightness-val');
     const customColorInput = document.getElementById('custom-color');
     const customSwatch = document.getElementById('custom-swatch');
+    const levelButtons = document.querySelectorAll('.btn-level');
 
-    function handleCustomColorChange(e) {
+    function highlightClosestLevel(val) {
+        const levels = [10, 33, 66, 100];
+        let closest = 100;
+        let minDiff = Infinity;
+        for (const lvl of levels) {
+            const diff = Math.abs(val - lvl);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = lvl;
+            }
+        }
+        currentBrightness = closest;
+        levelButtons.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-level'), 10) === closest);
+        });
+    }
+
+    function setBrightness(level) {
+        currentBrightness = level;
+        levelButtons.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-level'), 10) === level);
+        });
+        // Dims/brightens whatever color the lights currently are
+        client.publish(TOPIC_CMD, JSON.stringify({
+            target: "all",
+            action: "apply",
+            brightness: level
+        }));
+    }
+
+    function selectColor(hex, element) {
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+        if (element) element.classList.add('selected');
+        client.publish(TOPIC_CMD, JSON.stringify({
+            target: "all",
+            action: "apply",
+            color: hex,
+            brightness: currentBrightness
+        }));
+    }
+
+    function handleCustomColorInput(e) {
         const hex = e.target.value;
         if (!hex) return;
         customSwatch.style.background = `radial-gradient(circle, ${hex} 42%, transparent 46%), conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)`;
-        setSwatch(hex, customSwatch, true);
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+        customSwatch.classList.add('selected');
+
+        if (customColorDebounce) clearTimeout(customColorDebounce);
+        customColorDebounce = setTimeout(() => {
+            lastSentCustomColor = hex;
+            selectColor(hex, customSwatch);
+        }, 250);
     }
 
-    customColorInput.addEventListener('input', handleCustomColorChange);
-    customColorInput.addEventListener('change', handleCustomColorChange);
-    customColorInput.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (customColorInput.value) {
-            setSwatch(customColorInput.value, customSwatch, true);
+    customColorInput.addEventListener('input', handleCustomColorInput);
+    customColorInput.addEventListener('change', (e) => {
+        const hex = e.target.value;
+        if (!hex) return;
+        if (customColorDebounce) clearTimeout(customColorDebounce);
+        if (lastSentCustomColor !== hex) {
+            lastSentCustomColor = hex;
+            selectColor(hex, customSwatch);
         }
     });
-
-    function onBrightnessInput(val) {
-        const num = parseInt(val, 10);
-        brightnessVal.innerText = `${num}%`;
-    }
 
     client.on('connect', () => {
         brokerStatus.innerText = "CONNECTED";
@@ -306,48 +365,18 @@
                 const b = parseInt(data.devices[0].brightness, 10);
                 if (!isNaN(b) && b >= 1 && b <= 100) {
                     hasSyncedInitialBrightness = true;
-                    brightnessSlider.value = b;
-                    onBrightnessInput(b);
+                    highlightClosestLevel(b);
                 }
             }
         }
     });
 
-    function setSwatch(hex, element, forceSelect = false) {
-        if (!forceSelect && element.classList.contains('selected') && selectedColor === hex) {
-            element.classList.remove('selected');
-            selectedColor = null;
-            return;
-        }
-        selectedColor = hex;
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
-        element.classList.add('selected');
-    }
-
     function sendCommand(action) {
         if (action === 'reset') {
-            selectedColor = null;
-            brightnessSlider.value = 100;
-            brightnessVal.innerText = '100%';
+            highlightClosestLevel(100);
             document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
         }
         client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: action }));
-    }
-
-    function applySettings() {
-        const brightness = parseInt(brightnessSlider.value, 10);
-        const payload = {
-            target: "all",
-            action: "apply",
-            brightness: brightness
-        };
-        if (selectedColor) {
-            payload.color = selectedColor;
-        }
-        client.publish(TOPIC_CMD, JSON.stringify(payload));
-        // Clear pending color after applying so sliding the dimmer next time dims whatever color the lights already are
-        selectedColor = null;
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
     }
 </script>
 
