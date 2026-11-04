@@ -146,6 +146,7 @@
             cursor: pointer;
             transition: box-shadow 0.2s ease;
             box-sizing: border-box;
+            position: relative;
         }
 
         .swatch.selected { 
@@ -154,6 +155,101 @@
 
         .swatch-custom {
             background: conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red);
+            overflow: hidden;
+        }
+
+        .swatch-custom input[type="color"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+            margin: 0;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .dim-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 12px 16px;
+            margin: 16px 0;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dim-toggle-info {
+            text-align: left;
+        }
+
+        .dim-toggle-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .dim-toggle-sub {
+            font-size: 0.65rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .switch {
+            position: relative;
+            width: 46px;
+            height: 26px;
+            background: #334155;
+            border-radius: 999px;
+            transition: background 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: #f8fafc;
+            border-radius: 50%;
+            transition: transform 0.25s ease;
+        }
+
+        .switch.active {
+            background: var(--accent);
+        }
+
+        .switch.active::after {
+            transform: translateX(20px);
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .slider-header label {
+            margin-bottom: 0;
+        }
+
+        .slider-val {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
         }
 
         .broker-status {
@@ -179,9 +275,20 @@
             <button class="btn btn-secondary" style="grid-column: span 2;" onclick="sendCommand('reset')">RESET TO DAYLIGHT</button>
         </div>
 
+        <div class="dim-toggle-row" onclick="toggleDimSwitch()">
+            <div class="dim-toggle-info">
+                <div class="dim-toggle-title">Dim Switch</div>
+                <div class="dim-toggle-sub">Dims current or selected color when applied</div>
+            </div>
+            <div id="dim-switch" class="switch"></div>
+        </div>
+
         <div class="slider-group">
-            <label>Brightness</label>
-            <input type="range" id="brightness" min="1" max="100" value="100">
+            <div class="slider-header">
+                <label for="brightness">Brightness</label>
+                <span id="brightness-val" class="slider-val">100%</span>
+            </div>
+            <input type="range" id="brightness" min="1" max="100" value="100" oninput="onBrightnessInput(this.value)">
         </div>
 
         <div class="slider-group">
@@ -194,8 +301,8 @@
                 <div class="swatch" style="background: #00ffff" onclick="setSwatch('#00ffff', this)"></div>
                 <div class="swatch" style="background: #0000ff" onclick="setSwatch('#0000ff', this)"></div>
                 <div class="swatch" style="background: #ff00ff" onclick="setSwatch('#ff00ff', this)"></div>
-                <div class="swatch swatch-custom" onclick="openPicker(event)">
-                    <input type="color" id="custom-color" style="position: fixed; visibility: hidden; opacity: 0; pointer-events: none;" onchange="setSwatch(this.value, this.parentElement)">
+                <div id="custom-swatch" class="swatch swatch-custom" title="Pick custom color">
+                    <input type="color" id="custom-color" value="#ff8800">
                 </div>
             </div>
         </div>
@@ -211,23 +318,59 @@
     const TOPIC_STATUS = "adam/lights/candle_controller/status";
     const BROKER = "wss://broker.hivemq.com:8884/mqtt"; 
 
-    let selectedColor = "#ffffff";
+    let selectedColor = null;
+    let isDimmed = false;
+    let savedBrightLevel = 100;
+    const DIM_PRESET_LEVEL = 15;
+
     const client = mqtt.connect(BROKER);
     
     const ring = document.getElementById('status-ring');
     const statusText = document.getElementById('status-text');
     const brokerStatus = document.getElementById('broker-status');
+    const brightnessSlider = document.getElementById('brightness');
+    const brightnessVal = document.getElementById('brightness-val');
+    const dimSwitch = document.getElementById('dim-switch');
+    const customColorInput = document.getElementById('custom-color');
+    const customSwatch = document.getElementById('custom-swatch');
 
-    function openPicker(e) {
-        const picker = document.getElementById('custom-color');
-        picker.style.top = e.clientY + 'px';
-        picker.style.left = e.clientX + 'px';
-        
-        if (picker.showPicker) {
-            picker.showPicker();
-        } else {
-            picker.click();
+    function handleCustomColorChange(e) {
+        const hex = e.target.value;
+        if (!hex) return;
+        customSwatch.style.background = `radial-gradient(circle, ${hex} 42%, transparent 46%), conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)`;
+        setSwatch(hex, customSwatch, true);
+    }
+
+    customColorInput.addEventListener('input', handleCustomColorChange);
+    customColorInput.addEventListener('change', handleCustomColorChange);
+    customColorInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (customColorInput.value) {
+            setSwatch(customColorInput.value, customSwatch, true);
         }
+    });
+
+    function toggleDimSwitch() {
+        isDimmed = !isDimmed;
+        dimSwitch.classList.toggle('active', isDimmed);
+        if (isDimmed) {
+            const cur = parseInt(brightnessSlider.value, 10);
+            if (cur > DIM_PRESET_LEVEL) savedBrightLevel = cur;
+            brightnessSlider.value = DIM_PRESET_LEVEL;
+            brightnessVal.innerText = `${DIM_PRESET_LEVEL}%`;
+        } else {
+            const restore = savedBrightLevel > DIM_PRESET_LEVEL ? savedBrightLevel : 100;
+            brightnessSlider.value = restore;
+            brightnessVal.innerText = `${restore}%`;
+        }
+    }
+
+    function onBrightnessInput(val) {
+        const num = parseInt(val, 10);
+        brightnessVal.innerText = `${num}%`;
+        isDimmed = num <= 25;
+        dimSwitch.classList.toggle('active', isDimmed);
+        if (num > 25) savedBrightLevel = num;
     }
 
     client.on('connect', () => {
@@ -252,23 +395,44 @@
         }
     });
 
-    function setSwatch(hex, element) {
+    function setSwatch(hex, element, forceSelect = false) {
+        if (!forceSelect && element.classList.contains('selected') && selectedColor === hex) {
+            element.classList.remove('selected');
+            selectedColor = null;
+            return;
+        }
         selectedColor = hex;
         document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
         element.classList.add('selected');
     }
 
     function sendCommand(action) {
+        if (action === 'reset') {
+            selectedColor = null;
+            isDimmed = false;
+            dimSwitch.classList.remove('active');
+            brightnessSlider.value = 100;
+            brightnessVal.innerText = '100%';
+            document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+        }
         client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: action }));
     }
 
     function applySettings() {
-        const brightness = document.getElementById('brightness').value;
-        
-        client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: "brightness", value: brightness }));
-        setTimeout(() => {
-            client.publish(TOPIC_CMD, JSON.stringify({ target: "all", action: "color", value: selectedColor }));
-        }, 200);
+        const brightness = parseInt(brightnessSlider.value, 10);
+        const payload = {
+            target: "all",
+            action: "apply",
+            brightness: brightness,
+            dim: isDimmed
+        };
+        if (selectedColor) {
+            payload.color = selectedColor;
+        }
+        client.publish(TOPIC_CMD, JSON.stringify(payload));
+        // Clear pending color after applying so subsequent Dim/Brightness adjustments keep the current bulb color
+        selectedColor = null;
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
     }
 </script>
 
