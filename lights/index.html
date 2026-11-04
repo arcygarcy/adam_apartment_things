@@ -173,68 +173,6 @@
             appearance: none;
         }
 
-        .dim-toggle-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(15, 23, 42, 0.55);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 12px 16px;
-            margin: 16px 0;
-            cursor: pointer;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .dim-toggle-info {
-            text-align: left;
-        }
-
-        .dim-toggle-title {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #e2e8f0;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-        }
-
-        .dim-toggle-sub {
-            font-size: 0.65rem;
-            color: #64748b;
-            margin-top: 2px;
-        }
-
-        .switch {
-            position: relative;
-            width: 46px;
-            height: 26px;
-            background: #334155;
-            border-radius: 999px;
-            transition: background 0.25s ease;
-            flex-shrink: 0;
-        }
-
-        .switch::after {
-            content: '';
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 20px;
-            height: 20px;
-            background: #f8fafc;
-            border-radius: 50%;
-            transition: transform 0.25s ease;
-        }
-
-        .switch.active {
-            background: var(--accent);
-        }
-
-        .switch.active::after {
-            transform: translateX(20px);
-        }
-
         .slider-header {
             display: flex;
             justify-content: space-between;
@@ -275,17 +213,9 @@
             <button class="btn btn-secondary" style="grid-column: span 2;" onclick="sendCommand('reset')">RESET TO DAYLIGHT</button>
         </div>
 
-        <div class="dim-toggle-row" onclick="toggleDimSwitch()">
-            <div class="dim-toggle-info">
-                <div class="dim-toggle-title">Dim Switch</div>
-                <div class="dim-toggle-sub">Dims current or selected color when applied</div>
-            </div>
-            <div id="dim-switch" class="switch"></div>
-        </div>
-
         <div class="slider-group">
             <div class="slider-header">
-                <label for="brightness">Brightness</label>
+                <label for="brightness">Dimmer / Brightness</label>
                 <span id="brightness-val" class="slider-val">100%</span>
             </div>
             <input type="range" id="brightness" min="1" max="100" value="100" oninput="onBrightnessInput(this.value)">
@@ -319,9 +249,7 @@
     const BROKER = "wss://broker.hivemq.com:8884/mqtt"; 
 
     let selectedColor = null;
-    let isDimmed = false;
-    let savedBrightLevel = 100;
-    const DIM_PRESET_LEVEL = 15;
+    let hasSyncedInitialBrightness = false;
 
     const client = mqtt.connect(BROKER);
     
@@ -330,7 +258,6 @@
     const brokerStatus = document.getElementById('broker-status');
     const brightnessSlider = document.getElementById('brightness');
     const brightnessVal = document.getElementById('brightness-val');
-    const dimSwitch = document.getElementById('dim-switch');
     const customColorInput = document.getElementById('custom-color');
     const customSwatch = document.getElementById('custom-swatch');
 
@@ -350,27 +277,9 @@
         }
     });
 
-    function toggleDimSwitch() {
-        isDimmed = !isDimmed;
-        dimSwitch.classList.toggle('active', isDimmed);
-        if (isDimmed) {
-            const cur = parseInt(brightnessSlider.value, 10);
-            if (cur > DIM_PRESET_LEVEL) savedBrightLevel = cur;
-            brightnessSlider.value = DIM_PRESET_LEVEL;
-            brightnessVal.innerText = `${DIM_PRESET_LEVEL}%`;
-        } else {
-            const restore = savedBrightLevel > DIM_PRESET_LEVEL ? savedBrightLevel : 100;
-            brightnessSlider.value = restore;
-            brightnessVal.innerText = `${restore}%`;
-        }
-    }
-
     function onBrightnessInput(val) {
         const num = parseInt(val, 10);
         brightnessVal.innerText = `${num}%`;
-        isDimmed = num <= 25;
-        dimSwitch.classList.toggle('active', isDimmed);
-        if (num > 25) savedBrightLevel = num;
     }
 
     client.on('connect', () => {
@@ -379,8 +288,6 @@
         client.subscribe(TOPIC_STATUS);
         client.publish(TOPIC_CMD, JSON.stringify({ action: "status" }));
     });
-
-    let hasSyncedInitialBrightness = false;
 
     client.on('message', (topic, message) => {
         if (topic === TOPIC_STATUS) {
@@ -399,8 +306,8 @@
                 const b = parseInt(data.devices[0].brightness, 10);
                 if (!isNaN(b) && b >= 1 && b <= 100) {
                     hasSyncedInitialBrightness = true;
-                    onBrightnessInput(b);
                     brightnessSlider.value = b;
+                    onBrightnessInput(b);
                 }
             }
         }
@@ -420,8 +327,6 @@
     function sendCommand(action) {
         if (action === 'reset') {
             selectedColor = null;
-            isDimmed = false;
-            dimSwitch.classList.remove('active');
             brightnessSlider.value = 100;
             brightnessVal.innerText = '100%';
             document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
@@ -434,13 +339,15 @@
         const payload = {
             target: "all",
             action: "apply",
-            brightness: brightness,
-            dim: isDimmed
+            brightness: brightness
         };
         if (selectedColor) {
             payload.color = selectedColor;
         }
         client.publish(TOPIC_CMD, JSON.stringify(payload));
+        // Clear pending color after applying so sliding the dimmer next time dims whatever color the lights already are
+        selectedColor = null;
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
     }
 </script>
 
