@@ -6,240 +6,278 @@
     <title>Adam's Apartment Hub</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --card-border: rgba(255, 255, 255, 0.1);
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent-pink: #ec4899;
-            --accent-blue: #3b82f6;
-            --accent-yellow: #eab308;
-            --success: #10b981;
+            --win-teal: #008080;
+            --win-gray: #c0c0c0;
+            --win-dark: #808080;
+            --win-darker: #0a0a0a;
+            --win-light: #dfdfdf;
+            --win-white: #ffffff;
+            --win-navy: #000080;
+            --win-blue: #1084d0;
+            --win-text: #000000;
+            --bevel-raised: inset -1px -1px #0a0a0a, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+            --bevel-sunken: inset -1px -1px #ffffff, inset 1px 1px #808080, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
+            --bevel-pressed: inset 1px 1px #0a0a0a, inset -1px -1px #ffffff, inset 2px 2px #808080, inset -2px -2px #dfdfdf;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            background: var(--bg-gradient);
-            color: var(--text-primary);
+            font-family: "Tahoma", "MS Sans Serif", "Segoe UI", Geneva, sans-serif;
+            font-size: 12px;
+            background-color: var(--win-teal);
+            color: var(--win-text);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 2rem 1rem;
+            padding: 16px;
         }
 
-        .container {
-            max-width: 900px;
+        .window {
             width: 100%;
+            max-width: 560px;
+            background: var(--win-gray);
+            box-shadow: var(--bevel-raised), 4px 4px 0px rgba(0, 0, 0, 0.35);
+            padding: 3px;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-
-        header h1 {
-            font-size: 2.75rem;
-            font-weight: 800;
-            background: linear-gradient(to right, #f472b6, #38bdf8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-
-        header p {
-            color: var(--text-secondary);
-            font-size: 1.15rem;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 2rem;
-        }
-
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--card-border);
-            border-radius: 20px;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .card:hover {
-            transform: translateY(-6px);
-            border-color: rgba(255, 255, 255, 0.25);
-            box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.5);
-        }
-
-        .card-header {
+        .title-bar {
+            background: linear-gradient(90deg, var(--win-navy), var(--win-blue));
+            padding: 3px 4px 3px 6px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 1.25rem;
+            color: var(--win-white);
+            font-weight: bold;
+            font-size: 12px;
+            letter-spacing: 0.2px;
+            user-select: none;
         }
 
-        .icon-box {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
+        .title-bar-text {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.75rem;
-        }
-
-        .printer-icon { background: rgba(236, 72, 153, 0.15); color: var(--accent-pink); }
-        .lights-icon { background: rgba(234, 179, 8, 0.15); color: var(--accent-yellow); }
-
-        .badge {
-            display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--success);
-            border: 1px solid rgba(16, 185, 129, 0.3);
         }
 
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: var(--success);
-            box-shadow: 0 0 8px var(--success);
+        .title-bar-controls {
+            display: flex;
+            gap: 2px;
         }
 
-        .card-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .card-description {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.5;
-            margin-bottom: 1.5rem;
-        }
-
-        .btn {
+        .title-btn {
+            width: 16px;
+            height: 14px;
+            background: var(--win-gray);
+            box-shadow: var(--bevel-raised);
+            border: none;
+            color: var(--win-text);
+            font-family: "Tahoma", sans-serif;
+            font-size: 9px;
+            font-weight: bold;
+            line-height: 1;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            width: 100%;
-            padding: 0.85rem;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
+            padding: 0;
+        }
+
+        .window-body {
+            padding: 10px;
+        }
+
+        .banner-well {
+            background: var(--win-white);
+            box-shadow: var(--bevel-sunken);
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .banner-icon {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+            flex-shrink: 0;
+        }
+
+        .banner-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--win-navy);
+            margin-bottom: 2px;
+        }
+
+        .banner-sub {
+            color: #404040;
+            font-size: 11px;
+        }
+
+        fieldset {
             border: none;
-            cursor: pointer;
-            transition: background 0.2s ease;
+            box-shadow: inset 1px 1px var(--win-dark), inset -1px -1px var(--win-white), 1px 1px var(--win-white), -1px -1px var(--win-dark);
+            padding: 10px;
+            margin-bottom: 8px;
         }
 
-        .btn-printer {
-            background: linear-gradient(135deg, #ec4899, #d946ef);
-            color: white;
+        legend {
+            padding: 0 5px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 4px;
         }
 
-        .btn-printer:hover {
-            background: linear-gradient(135deg, #db2777, #c026d3);
+        .app-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
         }
 
-        .btn-lights {
-            background: linear-gradient(135deg, #eab308, #ca8a04);
-            color: white;
+        .app-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
         }
 
-        .btn-lights:hover {
-            background: linear-gradient(135deg, #ca8a04, #a16207);
+        .app-icon {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+            flex-shrink: 0;
+            margin-top: 2px;
         }
 
-        footer {
-            margin-top: 4rem;
-            text-align: center;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
+        .app-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 3px;
         }
 
-        footer a {
-            color: var(--accent-blue);
+        .app-desc {
+            font-size: 11px;
+            color: #333333;
+            line-height: 1.35;
+        }
+
+        .btn-launch {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            background: var(--win-gray);
+            color: var(--win-text);
+            box-shadow: var(--bevel-raised);
+            font-weight: bold;
+            font-size: 12px;
             text-decoration: none;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
-        footer a:hover {
+        .btn-launch:active {
+            box-shadow: var(--bevel-pressed);
+            transform: translate(1px, 1px);
+        }
+
+        @media (max-width: 480px) {
+            .app-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-launch {
+                width: 100%;
+            }
+        }
+
+        .status-bar {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 3px;
+            margin-top: 2px;
+            padding: 2px 2px 1px;
+        }
+
+        .status-bar-field {
+            box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080;
+            padding: 3px 6px;
+            font-size: 11px;
+            color: var(--win-text);
+        }
+
+        .status-bar-field a {
+            color: var(--win-navy);
             text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Adam's Apartment Hub</h1>
-            <p>Smart Home Controls & Guestbook Services</p>
-        </header>
+    <div class="window">
+        <div class="title-bar">
+            <div class="title-bar-text">
+                <img src="favicon.png" width="16" height="16" style="image-rendering: pixelated; display: block;" alt="">
+                <span>apartment_hub.exe - Adam's Apartment Hub</span>
+            </div>
+            <div class="title-bar-controls">
+                <span class="title-btn">_</span>
+                <span class="title-btn">□</span>
+                <span class="title-btn">✕</span>
+            </div>
+        </div>
 
-        <main class="grid">
-            <!-- Guestbook Printer Card -->
-            <a href="printer/" class="card">
+        <div class="window-body">
+            <div class="banner-well">
+                <img src="favicon.png" class="banner-icon" alt="">
                 <div>
-                    <div class="card-header">
-                        <div class="icon-box printer-icon">📸</div>
-                        <span class="badge"><span class="badge-dot"></span> Firebase Cloud</span>
-                    </div>
-                    <h2 class="card-title">Guestbook Thermal Printer</h2>
-                    <p class="card-description">
-                        Snap a photo, pick vintage & ASCII dither filters, write notes, and print instantly to the thermal receipt printer in the apartment!
-                    </p>
+                    <div class="banner-title">Adam's Apartment Hub (Windows 98 SE)</div>
+                    <div class="banner-sub">Select a utility program below to launch:</div>
                 </div>
-                <button class="btn btn-printer" type="button">
-                    Open Printer App &rarr;
-                </button>
-            </a>
+            </div>
 
-            <!-- Room Light Controller Card -->
-            <a href="lights/" class="card">
-                <div>
-                    <div class="card-header">
-                        <div class="icon-box lights-icon">💡</div>
-                        <span class="badge"><span class="badge-dot"></span> MQTT Active</span>
+            <fieldset>
+                <legend>guestbook.exe — Thermal Receipt Printer</legend>
+                <div class="app-row">
+                    <div class="app-info">
+                        <img src="printer/favicon.png" class="app-icon" alt="">
+                        <div>
+                            <div class="app-title">Guestbook Thermal Printer</div>
+                            <div class="app-desc">Snap a photo, apply vintage 1-bit &amp; ASCII dither filters, write a note, and print instantly to the 80mm thermal printer.</div>
+                        </div>
                     </div>
-                    <h2 class="card-title">Room Light Controller</h2>
-                    <p class="card-description">
-                        Local & remote Tuya smart lighting control center. Parallel toggles, mood color presets, and real-time status ring.
-                    </p>
+                    <a href="printer/" class="btn-launch">Open Printer &rarr;</a>
                 </div>
-                <button class="btn btn-lights" type="button">
-                    Open Light Controller &rarr;
-                </button>
-            </a>
-        </main>
+            </fieldset>
 
-        <footer>
-            <p>&copy; Adam's Apartment &bull; Hosted on <a href="https://github.com/arcygarcy/adam_apartment_things" target="_blank">GitHub Pages</a></p>
-        </footer>
+            <fieldset style="margin-bottom: 4px;">
+                <legend>lights.exe — Room Light Controller</legend>
+                <div class="app-row">
+                    <div class="app-info">
+                        <img src="lights/favicon.png" class="app-icon" alt="">
+                        <div>
+                            <div class="app-title">Room Light Controller</div>
+                            <div class="app-desc">Tuya smart candle light controller with instant 4-step dimmer presets, mood color palette, and live status display.</div>
+                        </div>
+                    </div>
+                    <a href="lights/" class="btn-launch">Open Lights &rarr;</a>
+                </div>
+            </fieldset>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-bar-field">2 Object(s) Online</div>
+            <div class="status-bar-field"><a href="https://github.com/arcygarcy/adam_apartment_things" target="_blank">GitHub Repo</a></div>
+        </div>
     </div>
 </body>
 </html>
