@@ -138,6 +138,107 @@ def rgb_to_tuya_hsv(hex_color, brightness_pct=100):
     val = max(10, min(1000, int(round(v * (float(brightness_pct) / 100.0) * 1000))))
     return f"{hue:04x}{sat:04x}{val:04x}"
 
+def parse_tuya_hsv(hsv_hex):
+    if not isinstance(hsv_hex, str) or len(hsv_hex) != 12:
+        return None
+    try:
+        h = int(hsv_hex[0:4], 16)
+        s = int(hsv_hex[4:8], 16)
+        v = int(hsv_hex[8:12], 16)
+        return (h, s, v)
+    except Exception:
+        return None
+
+def format_tuya_hsv(h, s, v):
+    hue = int(round(h)) % 360
+    sat = max(0, min(1000, int(round(s))))
+    val = max(10, min(1000, int(round(v))))
+    return f"{hue:04x}{sat:04x}{val:04x}"
+
+def build_transition_steps(cur_dps, expected_dps, steps=5):
+    if not isinstance(expected_dps, dict) or not expected_dps:
+        return []
+    # Simple power on/off: single step
+    if len(expected_dps) == 1 and '20' in expected_dps:
+        return [expected_dps]
+    if not isinstance(cur_dps, dict) or not cur_dps:
+        return [expected_dps]
+
+    was_on = bool(cur_dps.get('20', False))
+    cur_mode = cur_dps.get('21', 'white')
+    target_mode = expected_dps.get('21', cur_mode)
+
+    # Case 1: Transitioning to colour mode
+    if target_mode == 'colour' and '24' in expected_dps:
+        target_hsv = parse_tuya_hsv(expected_dps['24'])
+        if not target_hsv:
+            return [expected_dps]
+        h2, s2, v2 = target_hsv
+
+        if not was_on:
+            h1, s1, v1 = h2, s2, 10
+        elif cur_mode == 'colour' and parse_tuya_hsv(cur_dps.get('24')):
+            h1, s1, v1 = parse_tuya_hsv(cur_dps.get('24'))
+        else:
+            # Transitioning from white -> colour: start at low saturation with current white brightness
+            h1, s1, v1 = h2, min(150, s2), max(10, min(1000, int(cur_dps.get('22', v2))))
+
+        dh = ((h2 - h1 + 180) % 360) - 180
+        ds = s2 - s1
+        dv = v2 - v1
+
+        if abs(dh) < 4 and abs(ds) < 25 and abs(dv) < 30:
+            return [expected_dps]
+
+        seq_steps = []
+        for i in range(1, steps):
+            frac = i / float(steps)
+            hi = (h1 + dh * frac) % 360
+            si = s1 + ds * frac
+            vi = v1 + dv * frac
+            step_dps = {'20': True, '21': 'colour', '24': format_tuya_hsv(hi, si, vi)}
+            if not seq_steps or seq_steps[-1] != step_dps:
+                seq_steps.append(step_dps)
+        seq_steps.append(expected_dps)
+        return seq_steps
+
+        # Case 2: Transitioning to white mode (always use dedicated white LEDs, never fake white with RGB)
+    if target_mode == 'white' and '22' in expected_dps:
+        b2 = int(expected_dps['22'])
+        t2 = int(expected_dps.get('23', cur_dps.get('23', 300)))
+
+        if not was_on:
+            b1 = 10
+            t1 = t2
+        elif cur_mode == 'colour':
+            # Switching from RGB colour -> White LEDs: start white LEDs from low/matched brightness and ramp smoothly
+            cur_hsv = parse_tuya_hsv(cur_dps.get('24'))
+            b1 = max(10, min(1000, int(round((cur_hsv[2] if cur_hsv else 300) * 0.35))))
+            t1 = t2
+        else:
+            b1 = int(cur_dps.get('22', 1000))
+            t1 = int(cur_dps.get('23', t2))
+
+        db = b2 - b1
+        dt = t2 - t1
+
+        if cur_mode == 'white' and abs(db) < 35 and abs(dt) < 35:
+            return [expected_dps]
+
+        seq_steps = []
+        for i in range(1, steps):
+            frac = i / float(steps)
+            bi = max(10, min(1000, int(round(b1 + db * frac))))
+            step_dps = {'20': True, '21': 'white', '22': bi}
+            if '23' in expected_dps:
+                step_dps['23'] = max(0, min(1000, int(round(t1 + dt * frac))))
+            if not seq_steps or seq_steps[-1] != step_dps:
+                seq_steps.append(step_dps)
+        seq_steps.append(expected_dps)
+        return seq_steps
+
+    return [expected_dps]
+
 def dps_matches(actual_dps, expected_dps):
     if not isinstance(actual_dps, dict):
         return False
@@ -152,6 +253,21 @@ def dps_matches(actual_dps, expected_dps):
             return False
     return True
 
+def parse_grayscale_white_dps(hex_color):
+    """If hex_color is grayscale (zero/very low saturation), return white-LED DPS instead of RGB."""
+    if not isinstance(hex_color, str):
+        return None
+    try:
+        r, g, b = hex_to_rgb(hex_color.strip())
+        h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+        # Treat any color with saturation <= 8% (or max-min channel delta <= 18) as grayscale white LED
+        if s <= 0.08 or (max(r, g, b) - min(r, g, b)) <= 18:
+            white_bright = max(10, min(1000, int(round(v * 1000))))
+            return {'20': True, '21': 'white', '22': white_bright, '23': 1000}
+    except Exception:
+        pass
+    return None
+
 def build_expected_dps(name, d, action, value=None, extra=None):
     extra = extra or {}
     if action == "on":
@@ -159,23 +275,28 @@ def build_expected_dps(name, d, action, value=None, extra=None):
     elif action == "off":
         return {'20': False}
     elif action == "white":
-        return {'20': True, '21': 'white', '22': 1000}
+        return {'20': True, '21': 'white', '22': 1000, '23': 1000}
     elif action == "reset":
         return {'20': True, '21': 'white', '22': 1000, '23': 300}
     elif action == "color":
+        gray_dps = parse_grayscale_white_dps(value)
+        if gray_dps:
+            return gray_dps
         brightness_pct = max(1, min(100, int(extra.get("brightness", 100))))
         return {'20': True, '21': 'colour', '24': rgb_to_tuya_hsv(value, brightness_pct)}
     elif action in ("brightness", "dim", "apply"):
         brightness_pct = max(1, min(100, int(extra.get("brightness", value if value is not None else 100))))
         color_hex = extra.get("color")
         if color_hex:
+            gray_dps = parse_grayscale_white_dps(color_hex)
+            if gray_dps:
+                return gray_dps
             return {'20': True, '21': 'colour', '24': rgb_to_tuya_hsv(color_hex, brightness_pct)}
 
         # Dim / adjust brightness of the bulb's current color or white mode
         scaled_val = max(10, min(1000, int(round(brightness_pct * 10))))
         cur_dps = cached_dps.get(name) or {}
         if '21' not in cur_dps:
-            wait_for_bulb_cooldown(name, MIN_SOCKET_GAP)
             cur_status = d.status()
             mark_bulb_io(name)
             if isinstance(cur_status, dict) and isinstance(cur_status.get('dps'), dict):
@@ -212,47 +333,94 @@ def toggle_light(name, seq, stagger_delay, action, value=None, extra=None):
 
             d = devices[name]
             try:
-                if expected_dps is None:
-                    expected_dps = build_expected_dps(name, d, action, value, extra)
-                if not expected_dps:
-                    return
-
                 wait_for_bulb_cooldown(name, MIN_SOCKET_GAP)
-                if len(expected_dps) == 1 and '20' in expected_dps:
-                    res = d.turn_on() if expected_dps['20'] else d.turn_off()
-                else:
-                    res = d.set_multiple_values(expected_dps)
-                mark_bulb_io(name)
-
-                # If tinytuya reported a socket/protocol error, don't immediately hammer with status()
-                if not isinstance(res, dict) or 'Error' in res or 'Err' in res:
-                    err_msg = res.get('Error', res) if isinstance(res, dict) else 'No response'
-                    print(f"  [RETRY] {name} -> {action} error on attempt {attempt}: {err_msg}")
-                    if attempt == 2:
-                        refresh_bulb_ip_if_changed(name)
-                    devices[name] = create_device(CANDLE_LIGHTS_CONFIG[name])
-                else:
-                    res_dps = res.get('dps') if isinstance(res.get('dps'), dict) else None
-                    if res_dps:
-                        update_cached_dps(name, res_dps)
-
-                    if not dps_matches(res_dps, expected_dps):
-                        if is_superseded(name, seq):
-                            return
-                        wait_for_bulb_cooldown(name, VERIFY_SOCKET_GAP)
-                        verify = d.status()
+                d.set_socketPersistent(True)
+                try:
+                    # Ensure we have current bulb mode/brightness/color cached before building transition steps
+                    if '21' not in (cached_dps.get(name) or {}) and action not in ("on", "off"):
+                        init_status = d.status()
                         mark_bulb_io(name)
-                        if isinstance(verify, dict) and isinstance(verify.get('dps'), dict):
-                            res_dps = verify['dps']
-                            update_cached_dps(name, res_dps)
+                        if isinstance(init_status, dict) and isinstance(init_status.get('dps'), dict):
+                            update_cached_dps(name, init_status['dps'])
 
-                    if dps_matches(res_dps, expected_dps):
-                        update_cached_dps(name, expected_dps)
-                        print(f"  [CMD] {name} -> {action} OK (attempt {attempt})")
+                    if expected_dps is None:
+                        expected_dps = build_expected_dps(name, d, action, value, extra)
+                    if not expected_dps:
                         return
 
-                    print(f"  [RETRY] {name} -> {action} mismatch on attempt {attempt} (wanted {expected_dps}, got {res_dps})")
-                    devices[name] = create_device(CANDLE_LIGHTS_CONFIG[name])
+                    # Only run multi-step smooth transition on attempt 1; retries go straight to final target
+                    if attempt == 1:
+                        step_list = build_transition_steps(cached_dps.get(name), expected_dps, steps=5)
+                    else:
+                        step_list = [expected_dps]
+
+                    res = None
+                    for step_idx, step_dps in enumerate(step_list):
+                        if is_superseded(name, seq):
+                            return
+                        t_step = time.monotonic()
+                        if len(step_dps) == 1 and '20' in step_dps:
+                            res = d.turn_on() if step_dps['20'] else d.turn_off()
+                        else:
+                            res = d.set_multiple_values(step_dps)
+                        mark_bulb_io(name)
+
+                        if not isinstance(res, dict) or 'Error' in res or 'Err' in res:
+                            # If an intermediate fade step errors, break and let retry handle final target
+                            break
+
+                        step_ret_dps = res.get('dps') if isinstance(res.get('dps'), dict) else None
+                        if step_ret_dps:
+                            update_cached_dps(name, step_dps)
+                            update_cached_dps(name, step_ret_dps)
+
+                        if step_idx < len(step_list) - 1:
+                            elapsed = time.monotonic() - t_step
+                            if elapsed < 0.06:
+                                time.sleep(0.06 - elapsed)
+
+                    # Check final step result
+                    if not isinstance(res, dict) or 'Error' in res or 'Err' in res:
+                        err_msg = res.get('Error', res) if isinstance(res, dict) else 'No response'
+                        print(f"  [RETRY] {name} -> {action} error on attempt {attempt}: {err_msg}")
+                        if attempt == 2:
+                            refresh_bulb_ip_if_changed(name)
+                        devices[name] = create_device(CANDLE_LIGHTS_CONFIG[name])
+                    else:
+                        res_dps = res.get('dps') if isinstance(res.get('dps'), dict) else None
+                        if res_dps:
+                            # Tuya v3.5 only returns changed DPs in ACK; merge with known state if power/mode was already set
+                            merged_check = dict(cached_dps.get(name) or {})
+                            merged_check.update(res_dps)
+                            if dps_matches(merged_check, expected_dps):
+                                update_cached_dps(name, expected_dps)
+                                print(f"  [CMD] {name} -> {action} OK (attempt {attempt}, {len(step_list)} step(s))")
+                                return
+
+                        if not dps_matches(res_dps, expected_dps):
+                            if is_superseded(name, seq):
+                                return
+                            time.sleep(0.15)
+                            verify = d.status()
+                            mark_bulb_io(name)
+                            if isinstance(verify, dict) and isinstance(verify.get('dps'), dict):
+                                res_dps = verify['dps']
+                                update_cached_dps(name, res_dps)
+
+                        if dps_matches(res_dps, expected_dps):
+                            update_cached_dps(name, expected_dps)
+                            print(f"  [CMD] {name} -> {action} OK (attempt {attempt}, {len(step_list)} step(s))")
+                            return
+
+                        print(f"  [RETRY] {name} -> {action} mismatch on attempt {attempt} (wanted {expected_dps}, got {res_dps})")
+                        devices[name] = create_device(CANDLE_LIGHTS_CONFIG[name])
+                finally:
+                    try:
+                        d.set_socketPersistent(False)
+                        d.close()
+                    except Exception:
+                        pass
+                    mark_bulb_io(name)
             except Exception as e:
                 mark_bulb_io(name)
                 print(f"  [CMD] Error on {name} (attempt {attempt}): {e}")

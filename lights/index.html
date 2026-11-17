@@ -323,7 +323,6 @@
 
     <div class="menu-bar">
         <a href="../" class="hub-link">&larr; Back to Hub</a>
-        <span style="color: #404040; font-size: 11px;">Tuya Local Control v3.5</span>
     </div>
 
     <div class="window-body">
@@ -337,7 +336,8 @@
             <div class="controls-grid">
                 <button class="btn btn-primary" onclick="sendCommand('on')">Turn ON</button>
                 <button class="btn btn-secondary" onclick="sendCommand('off')">Turn OFF</button>
-                <button class="btn btn-secondary" style="grid-column: span 2;" onclick="sendCommand('reset')">Reset to Daylight</button>
+                <button class="btn btn-secondary" onclick="sendCommand('reset')">Reset to Daylight</button>
+                <button class="btn btn-secondary" onclick="sendCommand('white')">Pure White</button>
             </div>
         </fieldset>
 
@@ -426,6 +426,18 @@
     function selectColor(hex, element) {
         document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
         if (element) element.classList.add('selected');
+        if (typeof hex === 'string' && /^#?[0-9a-fA-F]{6}$/.test(hex.trim())) {
+            const clean = hex.trim().replace('#', '');
+            const r = parseInt(clean.substring(0, 2), 16);
+            const g = parseInt(clean.substring(2, 4), 16);
+            const b = parseInt(clean.substring(4, 6), 16);
+            const maxC = Math.max(r, g, b);
+            const minC = Math.min(r, g, b);
+            const sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
+            if (sat <= 0.08 || (maxC - minC) <= 18) {
+                highlightClosestLevel(Math.max(1, Math.round((maxC / 255) * 100)));
+            }
+        }
         client.publish(TOPIC_CMD, JSON.stringify({
             target: "all",
             action: "apply",
@@ -490,7 +502,7 @@
     });
 
     function sendCommand(action) {
-        if (action === 'reset') {
+        if (action === 'reset' || action === 'white') {
             highlightClosestLevel(100);
             document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
         }
