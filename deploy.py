@@ -89,6 +89,8 @@ cmd = (
     "sudo systemctl disable --now light-listener.service 2>/dev/null || true && "
     "echo '0 4 * * * root /sbin/shutdown -r now' | sudo tee /etc/cron.d/daily-pi-reboot >/dev/null && "
     "sudo chmod 644 /etc/cron.d/daily-pi-reboot && "
+    "printf 'net.ipv4.conf.all.arp_ignore=1\\nnet.ipv4.conf.all.arp_announce=2\\nnet.ipv4.conf.all.rp_filter=2\\n' | sudo tee /etc/sysctl.d/99-dual-nic-arp.conf >/dev/null && "
+    "sudo sysctl --system >/dev/null 2>&1 || true && "
     "sudo sed -i 's/^#*RuntimeWatchdogSec=.*/RuntimeWatchdogSec=15/' /etc/systemd/system.conf && "
     "([ -d node_modules/firebase ] || npm install firebase --save) && "
     "(pm2 delete printer 2>/dev/null || true) && "
